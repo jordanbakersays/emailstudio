@@ -27,13 +27,6 @@ the default.
 - **Change words:** click the text and type. Select words and use **B**, **I**,
   **U**, **Link** or **• List** in the bar above the email. **Enter** starts a
   new line.
-- **Alignment, size, font and color:** click in a paragraph and use the three
-  align buttons, or pick a **Size**, **Font**, text color (**A**) or highlight
-  (**ab**). Select words to change only those words; with nothing selected, the
-  whole paragraph changes. Choose **Email default** to go back to the email's own
-  look. **S** is strikethrough, **1. List** makes a numbered list.
-  Colors you pick yourself do not adapt in dark mode, so avoid very dark or very
-  light colors for important text.
 - **Paste text:** from Word, Google Docs or a web page. Fonts, colors and other
   junk are stripped so the email's own design stays intact. Bold, italics and
   links are kept.
