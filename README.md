@@ -57,6 +57,16 @@ different. The email itself looks and behaves the same.
 
 ---
 
+## Using it on a phone
+
+On a phone the screen is simplified: tap **☰** for your list of emails, **Copy**
+and **Save** stay on top, and everything else (Paste HTML, Images, History,
+Duplicate, Delete, Make master) is under the **⋯** button. The formatting bar
+scrolls sideways. Wide emails are shown shrunk to fit, like a phone mail app
+would. **Split** view is hidden because there isn't room; use **Visual** or **Code**.
+
+---
+
 ## Protecting your master templates
 
 - **Make master.** Open a finished email and click **🔒 Make master**. A yellow
