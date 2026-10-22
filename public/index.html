@@ -69,6 +69,9 @@
 
   /* masters, drafts, history */
   #banner{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 14px;border-bottom:1px solid var(--line);font-size:13px}
+  #restore{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 14px;border-bottom:1px solid var(--line);background:#fee2e2;color:#7f1d1d;font-size:13px}
+  #restore .msg{flex:1 1 240px}
+  #restore button{padding:3px 10px;font-size:12px}
   #banner.master{background:#fef3c7;color:#78350f}
   #banner.draft{background:#e0f2fe;color:#0c4a6e}
   #banner .msg{flex:1 1 260px}
@@ -241,6 +244,7 @@
     </div>
 
     <div id="banner" hidden></div>
+    <div id="restore" hidden></div>
 
     <div id="tagbar">
       <span class="lbl">Tags</span>
@@ -283,6 +287,7 @@
 <div id="toast" role="status"></div>
 
 <script src="/editor.js"></script>
+<script src="/darkmode.js"></script>
 <script>
 (() => {
   const $ = (s) => document.querySelector(s);
@@ -334,7 +339,11 @@
     if (res.status === 401) { showLogin(); throw new Error('Please sign in again.'); }
     let data = null;
     try { data = await res.json(); } catch {}
-    if (!res.ok) throw new Error((data && data.error) || `Request failed (${res.status})`);
+    if (!res.ok) {
+      const err = new Error((data && data.error) || `Request failed (${res.status})`);
+      if (data && data.conflict) { err.conflict = true; err.updated = data.updated; }
+      throw err;
+    }
     return data;
   }
   const jsonBody = (method, obj) => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) });
@@ -406,11 +415,74 @@
   function setDirty(v) {
     dirty = v;
     $('#dirty').textContent = v ? '● Unsaved' : '';
+    if (v) scheduleBackup();
+  }
+
+  /* ---------- keep a copy of unsaved work on this device ---------- */
+  // If the browser reloads the page (phones do this when you switch apps), the tab
+  // crashes, or the wifi drops, unsaved changes can be brought back.
+  const BACKUP_PREFIX = 'es-backup:';
+  let backupTimer;
+  const backupKey = (id) => BACKUP_PREFIX + (id || 'new');
+  function scheduleBackup() {
+    clearTimeout(backupTimer);
+    backupTimer = setTimeout(writeBackup, 600);
+  }
+  function writeBackup() {
+    if (!dirty) return;
+    try {
+      localStorage.setItem(backupKey(cur.id), JSON.stringify({
+        name: $('#name').value, html: $('#code').value, tags: cur.tags, base: cur.updated || null, at: Date.now(),
+      }));
+    } catch { /* storage full or blocked: ignore */ }
+  }
+  function clearBackup(id) {
+    clearTimeout(backupTimer);
+    try { localStorage.removeItem(backupKey(id)); } catch {}
+  }
+  function readBackup(id) {
+    try {
+      const b = JSON.parse(localStorage.getItem(backupKey(id)) || 'null');
+      if (!b || typeof b.html !== 'string' || Date.now() - b.at > 14 * 864e5) return null;
+      return b;
+    } catch { return null; }
+  }
+  function offerRestore() {
+    const box = $('#restore');
+    box.hidden = true;
+    box.textContent = '';
+    const b = readBackup(cur.id);
+    if (!b || b.html === cur.html || (!cur.id && b.html === STARTER)) return;
+    const msg = document.createElement('span');
+    msg.className = 'msg';
+    msg.textContent = 'Unsaved changes from ' +
+      new Date(b.at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) +
+      ' were found on this device.';
+    const yes = document.createElement('button');
+    yes.textContent = 'Restore them';
+    yes.className = 'primary';
+    yes.addEventListener('click', () => {
+      box.hidden = true;
+      $('#code').value = b.html;
+      if (b.name) $('#name').value = b.name;
+      cur.tags = Array.isArray(b.tags) ? b.tags : cur.tags;
+      cur.html = b.html;
+      renderTags();
+      renderPreview();
+      setDirty(true);
+      renderStatus();
+      toast('Restored. Click Save to keep them.');
+    });
+    const no = document.createElement('button');
+    no.textContent = 'Discard';
+    no.addEventListener('click', () => { box.hidden = true; clearBackup(cur.id); });
+    box.append(msg, yes, no);
+    box.hidden = false;
   }
 
   function loadIntoEditor(t) {
     cur = { id: t.id || null, name: t.name || 'Untitled email', html: t.html ?? '', tags: [...(t.tags || [])],
-            master: !!t.master, parent: t.parent || null };
+            master: !!t.master, parent: t.parent || null, updated: t.updated || null };
     $('#name').value = cur.name;
     $('#code').value = cur.html;
     setDirty(false);
@@ -419,6 +491,7 @@
     renderStatus();
     renderList();
     updateChrome();
+    offerRestore();
   }
 
   // Banner and buttons that depend on whether this is a master, a draft or a plain email.
@@ -438,6 +511,15 @@
     if (cur.master) {
       b.hidden = false; b.className = 'master';
       msg('🔒 <b>Master template.</b> This is the approved version. <b>Save</b> makes a separate draft copy, so the master stays safe.');
+      const drafts = templates.filter((t) => t.parent === cur.id).sort((a, b) => (b.updated || '').localeCompare(a.updated || ''));
+      if (drafts.length) {
+        const d = document.createElement('span');
+        d.className = 'msg';
+        d.style.flex = '1 1 100%';
+        d.textContent = `${drafts.length} draft${drafts.length > 1 ? 's' : ''} of this master. Looking for your changes? Newest: “${drafts[0].name}”, ${fmtDate(drafts[0].updated)}.`;
+        b.appendChild(d);
+        addBtn('Open newest draft', () => openTemplate(drafts[0].id));
+      }
       addBtn('Update the master…', updateMaster, 'danger');
     } else if (cur.parent) {
       b.hidden = false; b.className = 'draft';
@@ -534,6 +616,30 @@
     return r.count;
   }
 
+  /* ---------- dark mode check ---------- */
+  let dark = { html: null, res: null };
+  let darkTimer = null;
+  function scheduleDarkCheck() {
+    const html = $('#code').value;
+    if (dark.html === html) return;
+    clearTimeout(darkTimer);
+    darkTimer = setTimeout(async () => {
+      let res = null;
+      try { res = await window.EmailDarkMode.analyze(html); } catch (e) { /* ignore */ }
+      dark = { html, res };
+      if ($('#code').value === html) renderStatus();
+    }, 600);
+  }
+  async function fixDark() {
+    ve.flush();
+    const r = await window.EmailDarkMode.fix($('#code').value);
+    if (!r || !r.count) { toast('Nothing to change for dark mode'); return; }
+    $('#code').value = r.html;
+    onEdit();
+    renderPreview();
+    toast('Added dark mode colors. Check it in a dark-mode email app.');
+  }
+
   /* ---------- checks ---------- */
   function check(html) {
     const bytes = new Blob([html]).size;
@@ -581,6 +687,25 @@
       b.title = 'Lets pictures shrink on small screens (adds max-width:100%)';
       b.textContent = `Fix ${loose} picture${loose > 1 ? 's' : ''} for phones`;
       b.addEventListener('click', () => fixImages(false));
+      s.appendChild(b);
+    }
+    scheduleDarkCheck();
+    const d = dark.html === $('#code').value ? dark.res : null;
+    if (d && d.total) {
+      const parts = [];
+      if (d.bright) parts.push(`${d.bright} light block${d.bright > 1 ? 's' : ''}`);
+      if (d.unreadable) parts.push(`${d.unreadable} hard-to-read text`);
+      if (d.needsMeta) parts.push('missing dark-mode tag');
+      const c = document.createElement('span');
+      c.className = 'chip';
+      c.textContent = 'Not dark-mode friendly: ' + parts.join(', ');
+      s.appendChild(c);
+      const b = document.createElement('button');
+      b.className = 'chip';
+      b.style.cssText = 'border:0;cursor:pointer';
+      b.title = 'Adds dark-mode colors for the spots that stay bright or become unreadable';
+      b.textContent = 'Fix for dark mode';
+      b.addEventListener('click', fixDark);
       s.appendChild(b);
     }
   }
@@ -739,6 +864,9 @@
     renderList();
   }
 
+  // After a refresh, come back to the email that was open instead of a blank one.
+  function rememberLast(id) { try { if (id) localStorage.setItem('es-last', id); else localStorage.removeItem('es-last'); } catch {} }
+
   function confirmDiscard() {
     return !dirty || confirm('You have unsaved changes. Discard them?');
   }
@@ -749,12 +877,32 @@
     if (!confirmDiscard()) return;
     try {
       loadIntoEditor(await api('/api/templates/' + id));
+      rememberLast(id);
     } catch (e) { toast(e.message, true); }
   }
 
   /* ---------- actions ---------- */
   function rowFrom(r) {
     return { id: r.id, name: r.name, tags: r.tags, updated: r.updated, master: !!r.master, parent: r.parent || null };
+  }
+
+  // Save changes to an existing email. If someone else saved it after this person
+  // opened it, ask before replacing their version (it stays in History either way).
+  async function putTemplate(id, body, base) {
+    const send = (force) => api('/api/templates/' + id,
+      jsonBody('PUT', { ...body, baseUpdated: base || undefined, ...(force ? { force: true } : {}) }));
+    try {
+      return await send(false);
+    } catch (e) {
+      if (!e.conflict) throw e;
+      const when = e.updated
+        ? new Date(e.updated).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+        : 'recently';
+      if (!confirm(`Someone else saved this email (${when}) after you opened it.\n\nOK = replace their version with yours (theirs stays in History).\nCancel = keep editing; nothing is saved.`)) {
+        throw new Error('Not saved. Your changes are still here.');
+      }
+      return send(true);
+    }
   }
 
   async function save() {
@@ -766,14 +914,19 @@
     $('#saveBtn').disabled = true;
     try {
       if (cur.id) {
-        const r = await api('/api/templates/' + cur.id, jsonBody('PUT', { name, html, tags: cur.tags }));
+        const r = await putTemplate(cur.id, { name, html, tags: cur.tags }, cur.updated);
         const row = templates.find((t) => t.id === cur.id);
         if (row) Object.assign(row, rowFrom(r));
+        cur.updated = r.updated;
       } else {
         const r = await api('/api/templates', jsonBody('POST', { name, html, tags: cur.tags }));
+        clearBackup(null);
+        rememberLast(r.id);
         cur.id = r.id;
+        cur.updated = r.updated;
         templates.unshift(rowFrom(r));
       }
+      clearBackup(cur.id);
       cur.name = name;
       $('#name').value = name;
       templates.sort((a, b) => (b.updated || '').localeCompare(a.updated || ''));
@@ -796,7 +949,9 @@
     try {
       const r = await api('/api/templates', jsonBody('POST', { name, html, tags: cur.tags, parent: masterId }));
       templates.unshift(rowFrom(r));
-      cur = { id: r.id, name: r.name, html, tags: [...cur.tags], master: false, parent: r.parent };
+      clearBackup(masterId);
+      rememberLast(r.id);
+      cur = { id: r.id, name: r.name, html, tags: [...cur.tags], master: false, parent: r.parent, updated: r.updated };
       $('#name').value = r.name;
       templates.sort((a, b) => (b.updated || '').localeCompare(a.updated || ''));
       setDirty(false);
@@ -812,10 +967,12 @@
     ve.flush();
     const name = $('#name').value.trim() || cur.name;
     try {
-      const r = await api('/api/templates/' + cur.id, jsonBody('PUT', { name, html: $('#code').value, tags: cur.tags, overwrite: true }));
+      const r = await putTemplate(cur.id, { name, html: $('#code').value, tags: cur.tags, overwrite: true }, cur.updated);
       const row = templates.find((t) => t.id === cur.id);
       if (row) Object.assign(row, rowFrom(r));
       cur.name = name;
+      cur.updated = r.updated;
+      clearBackup(cur.id);
       setDirty(false);
       renderList();
       updateChrome();
@@ -831,7 +988,7 @@
     ve.flush();
     try {
       if (dirty) await save();
-      const r = await api('/api/templates/' + m.id, jsonBody('PUT', { html: $('#code').value, overwrite: true }));
+      const r = await putTemplate(m.id, { html: $('#code').value, overwrite: true }, m.updated);
       Object.assign(m, rowFrom(r));
       renderList();
       toast(`Master "${m.name}" updated. Its previous version is in History.`);
@@ -847,6 +1004,7 @@
       const row = templates.find((t) => t.id === cur.id);
       if (row) Object.assign(row, rowFrom(r));
       cur.master = next;
+      cur.updated = r.updated;
       renderList();
       updateChrome();
       toast(next ? 'Locked as master. Save now creates drafts instead of changing it.' : 'Unlocked');
@@ -904,7 +1062,9 @@
     try {
       const r = await api('/api/templates', jsonBody('POST', { name, html: $('#code').value, tags: cur.tags }));
       templates.unshift(rowFrom(r));
+      clearBackup(cur.id);
       cur.id = r.id;
+      cur.updated = r.updated;
       cur.name = r.name;
       cur.master = false;
       cur.parent = null;
@@ -922,6 +1082,8 @@
     if (!confirm(`Delete "${cur.name}"? This can't be undone.`)) return;
     try {
       await api('/api/templates/' + cur.id, { method: 'DELETE' });
+      clearBackup(cur.id);
+      rememberLast(null);
       templates = templates.filter((t) => t.id !== cur.id);
       newEmail(true);
       toast('Deleted');
@@ -932,6 +1094,7 @@
     if (!skipConfirm && !confirmDiscard()) return;
     // If you're viewing one tag's emails, a new email starts with that tag.
     const tags = activeTag && activeTag !== UNTAGGED ? [activeTag] : [];
+    rememberLast(null);
     loadIntoEditor({ id: null, name: 'Untitled email', html: STARTER, tags });
   }
 
@@ -1307,8 +1470,13 @@
     showApp();
     loadIntoEditor({ id: null, name: 'Untitled email', html: STARTER });
     try { await loadTemplates(); } catch (e) { toast(e.message, true); }
-    // On a phone, start on the list of emails.
-    if (smallScreen.matches && templates.length) document.body.classList.add('side-open');
+    let last = null;
+    try { last = localStorage.getItem('es-last'); } catch {}
+    if (last && templates.some((t) => t.id === last) && !readBackup(null)) {
+      await openTemplate(last);          // back to where you were before the refresh
+    } else if (smallScreen.matches && templates.length) {
+      document.body.classList.add('side-open');   // on a phone, start on the list of emails
+    }
   }
 
   (async () => {

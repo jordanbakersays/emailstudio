@@ -961,6 +961,41 @@
       }
     }
 
+    // Anything that arrived by pasting or dropping text must not bring its own colors,
+    // fonts or sizes: the email's own styling (including dark mode) has to stay in charge.
+    // 'before' is the set of elements that existed before the paste.
+    const BLOCKY = new Set(['DIV', 'P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'BLOCKQUOTE', 'PRE', 'SECTION', 'ARTICLE', 'HEADER', 'FOOTER']);
+    function sanitizeInserted(host, before) {
+      if (!host || !host.isConnected) return;
+      const added = [...host.querySelectorAll('*')].filter((el) => !before.has(el));
+      for (const el of added) {
+        if (!el.isConnected) continue;
+        const t = el.tagName;
+        if (t === 'IMG' || t === 'BR' || t === 'LI' || t === 'UL' || t === 'OL') {
+          if (t !== 'IMG') ['style', 'class', 'color', 'face', 'size', 'bgcolor', 'align'].forEach((a) => el.removeAttribute(a));
+          continue;
+        }
+        if (t === 'A') {
+          const href = el.getAttribute('href') || '';
+          ['style', 'class', 'color', 'face', 'size'].forEach((a) => el.removeAttribute(a));
+          if (!ALLOWED.test(href)) el.replaceWith(...el.childNodes);
+          continue;
+        }
+        if (t === 'B' || t === 'STRONG' || t === 'I' || t === 'EM' || t === 'U') {
+          ['style', 'class'].forEach((a) => el.removeAttribute(a));
+          continue;
+        }
+        if (BLOCKY.has(t)) {
+          const br = doc.createElement('br');
+          el.replaceWith(...el.childNodes, br);
+          continue;
+        }
+        // spans, fonts, and anything else: keep the words, drop the wrapper
+        el.replaceWith(...el.childNodes);
+      }
+      host.normalize();
+    }
+
     function onPaste(e) {
       const host = closestEl(e.target, '[data-es-edit]');
       e.preventDefault();
@@ -979,6 +1014,7 @@
       const html = dt.getData('text/html');
       const text = dt.getData('text/plain');
       const inList = host.tagName === 'UL' || host.tagName === 'OL';
+      const before = new Set(host.querySelectorAll('*'));
       if (inList) {
         doc.execCommand('insertText', false, text.replace(/\s*\r?\n+\s*/g, ' ').trim());
       } else if (html) {
@@ -986,7 +1022,23 @@
       } else {
         doc.execCommand('insertHTML', false, textToHtml(text));
       }
+      sanitizeInserted(closestEl(doc.getSelection().anchorNode, '[data-es-edit]') || host, before);
       scheduleChange();
+    }
+
+    // Safety net for any other way text can arrive (dragging text in, a phone keyboard's
+    // clipboard button, a browser that skips the paste step): clean it up afterwards.
+    let sanitizeNext = null;
+    function onBeforeInput(e) {
+      if (!/^insertFrom(Paste|Drop|Yank|PasteAsQuotation)$/.test(e.inputType || '')) return;
+      const host = closestEl(e.target, '[data-es-edit]');
+      if (host) sanitizeNext = { host, before: new Set(host.querySelectorAll('*')) };
+    }
+    function onInputSanitize() {
+      if (!sanitizeNext) return;
+      const { host, before } = sanitizeNext;
+      sanitizeNext = null;
+      sanitizeInserted(host, before);
     }
 
     function dropTarget(e) {
@@ -1043,7 +1095,8 @@
     function bind(d) {
       d.addEventListener('click', onClick, true);
       d.addEventListener('keydown', onKeyDown);
-      d.addEventListener('input', scheduleChange);
+      d.addEventListener('beforeinput', onBeforeInput);
+      d.addEventListener('input', () => { onInputSanitize(); scheduleChange(); });
       d.addEventListener('paste', onPaste);
       d.addEventListener('dragover', onDragOver);
       d.addEventListener('dragleave', (e) => { if (!e.relatedTarget) clearDropMark(); });
