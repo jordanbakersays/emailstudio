@@ -40,7 +40,7 @@
   #list li{padding:8px 10px;border-radius:7px;cursor:pointer;border:1px solid transparent}
   #list li:hover{background:#f1eee6}
   #list li.active{background:#e6f2f0;border-color:#bfe0db}
-  #list .t-name{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #list .t-name{display:block;font-weight:600;overflow-wrap:anywhere}
   #list .t-date{display:block;color:var(--muted);font-size:12px}
   #list .empty{color:var(--muted);cursor:default;padding:8px 10px}
   #list .empty:hover{background:none}
@@ -72,7 +72,7 @@
   #list .badge{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-radius:4px;padding:0 5px;margin-right:6px;vertical-align:1px}
   #list .badge.m{background:#fef3c7;color:#78350f}
   #list .badge.d{background:#e0f2fe;color:#0c4a6e}
-  #list .t-sub{display:block;color:var(--muted);font-size:11px}
+  #list .t-sub{display:block;color:var(--muted);font-size:11px;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   #hist{position:fixed;inset:0;background:rgba(20,22,26,.45);display:flex;align-items:center;justify-content:center;z-index:20;padding:16px}
   #hist[hidden]{display:none}
   #hist .box{background:var(--panel);border-radius:12px;max-width:520px;width:100%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.3)}
@@ -554,25 +554,18 @@
       li.className = (t.id === cur.id ? 'active ' : '') + (t.parent ? 'draft' : '');
       const n = document.createElement('span');
       n.className = 't-name';
+      n.textContent = t.name;
+      li.appendChild(n);
       if (t.master || t.parent) {
+        const row = document.createElement('span');
+        row.className = 't-sub';
         const bd = document.createElement('span');
         bd.className = 'badge ' + (t.master ? 'm' : 'd');
         bd.textContent = t.master ? 'Master' : 'Draft';
-        n.appendChild(bd);
-      }
-      n.appendChild(document.createTextNode(t.name));
-      const d = document.createElement('span');
-      d.className = 't-date';
-      d.textContent = fmtDate(t.updated);
-      li.append(n, d);
-      if (t.parent && !shownIds.has(t.parent)) {
-        const p = templates.find((x) => x.id === t.parent);
-        if (p) {
-          const sub = document.createElement('span');
-          sub.className = 't-sub';
-          sub.textContent = 'Draft of ' + p.name;
-          li.appendChild(sub);
-        }
+        row.appendChild(bd);
+        const p = t.parent && !shownIds.has(t.parent) ? templates.find((x) => x.id === t.parent) : null;
+        if (p) row.appendChild(document.createTextNode('of ' + p.name));
+        li.appendChild(row);
       }
       if ((t.tags || []).length) {
         const tg = document.createElement('span');
