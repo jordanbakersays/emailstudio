@@ -211,6 +211,8 @@
       #fmt .ve-grp{display:inline-flex;gap:6px;align-items:center;flex-wrap:nowrap}
       #fmt .ve-sep{width:1px;height:18px;background:var(--line)}
       #fmt .ve-img{background:#e6f2f0;border-top:1px solid #bfe0db;border-bottom:1px solid #bfe0db}
+      #fmt .ve-blk{background:#eaf0fb;border-top:1px solid #c5d3ee;border-bottom:1px solid #c5d3ee}
+      #fmt .ve-bname{font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       #fmt .ve-alt{flex:1 1 200px;padding:3px 8px;font-size:12px}
       #fmt .ve-danger,.ve-dlg .ve-danger{color:var(--danger)}
       #fmt .ve-hint{padding:0 12px 6px;color:var(--muted);font-size:12px}
@@ -232,6 +234,7 @@
     img{cursor:pointer}
     img:hover{outline:2px dashed rgba(15,118,110,.65);outline-offset:2px}
     img[data-es-sel]{outline:3px solid #0f766e!important;outline-offset:2px}
+    [data-es-block]{outline:2px solid rgba(37,99,235,.55)!important;outline-offset:-2px}
     [data-es-drop]{outline:3px dashed #0f766e!important;outline-offset:2px}
   `;
 
@@ -305,6 +308,15 @@
         <input type="text" class="ve-alt" placeholder="Describe the picture (alt text)" maxlength="200" aria-label="Alt text">
         <button type="button" data-act="imgLink">Link</button>
         <button type="button" data-act="imgRemove" class="ve-danger">Remove</button>
+      </div>
+      <div class="ve-row ve-blk" hidden>
+        <strong>Section</strong>
+        <span class="ve-bname"></span>
+        <button type="button" data-act="blkUp" title="Move this section up">&uarr; Up</button>
+        <button type="button" data-act="blkDown" title="Move this section down">&darr; Down</button>
+        <button type="button" data-act="blkDup" title="Make a copy right below">Duplicate</button>
+        <button type="button" data-act="blkDel" class="ve-danger" title="Remove this whole section">Delete</button>
+        <button type="button" data-act="blkUndo" hidden>Undo</button>
       </div>
       <div class="ve-hint">Click any text to edit it. Click a picture to change it.</div>`;
     // Fill the dropdowns and color boxes.
@@ -646,7 +658,7 @@
           s.replaceWith(...s.childNodes);
         }
       });
-      ['data-es-edit', 'data-es-sel', 'data-es-drop', 'data-es-new'].forEach((a) =>
+      ['data-es-edit', 'data-es-sel', 'data-es-drop', 'data-es-new', 'data-es-block'].forEach((a) =>
         clone.querySelectorAll('[' + a + ']').forEach((e) => e.removeAttribute(a)));
       clone.querySelectorAll('style[data-es-style]').forEach((e) => e.remove());
       clone.querySelectorAll('[style=""]').forEach((e) => e.removeAttribute('style'));
@@ -793,6 +805,129 @@
       });
     }
 
+    /* ---------- sections (whole blocks) ---------- */
+    // A section is a table or div that sits in a stack of two or more of them
+    // (like the Elder Spotlight in the newsletter). A plain comment right above
+    // it (<!-- Elder Spotlight -->) travels with it and gives it its name.
+    const blkRow = bar.querySelector('.ve-blk');
+    const blkName = bar.querySelector('.ve-bname');
+    const blkUndo = bar.querySelector('[data-act=blkUndo]');
+    let curBlock = null;
+    let undoOp = null;
+
+    const isBox = (n) => n && n.nodeType === 1 && (n.tagName === 'TABLE' || n.tagName === 'DIV');
+    function blockOf(node) {
+      for (let a = node && (node.nodeType === 1 ? node : node.parentElement); a && a !== doc.body && a !== doc.documentElement; a = a.parentElement) {
+        const p = a.parentElement;
+        if (!isBox(a) || !p || p === doc.body) continue;
+        if ([...p.children].filter(isBox).length >= 2) return a;
+      }
+      return null;
+    }
+    const plainComment = (n) => n && n.nodeType === 8 && !/^\s*\[if|\[endif\]/i.test(n.data) && !/^\s*<!\[endif/i.test(n.data);
+    function labelOf(el) {
+      let n = el.previousSibling;
+      while (n && n.nodeType === 3 && !n.nodeValue.trim()) n = n.previousSibling;
+      return plainComment(n) ? n : null;
+    }
+    const isSpacer = (el) => !el.textContent.trim() && !el.querySelector('img');
+    function nameOf(el) {
+      const c = labelOf(el);
+      const t = c && c.data.replace(/[=\-]/g, ' ').replace(/\s+/g, ' ').trim();
+      if (t && !/^spacer$/i.test(t)) return t;
+      const h = el.querySelector('h1,h2,h3,h4,strong,b');
+      const txt = (h || el).textContent.replace(/\s+/g, ' ').trim();
+      return txt ? txt.slice(0, 40) : 'Section';
+    }
+    function unitOf(el) {
+      const nodes = [el];
+      const c = labelOf(el);
+      if (c) {
+        for (let n = el.previousSibling; n; n = n.previousSibling) {
+          nodes.unshift(n);
+          if (n === c) break;
+        }
+      }
+      return nodes;
+    }
+    function siblingBlock(el, dir) {
+      for (let n = dir < 0 ? el.previousElementSibling : el.nextElementSibling; n; n = dir < 0 ? n.previousElementSibling : n.nextElementSibling) {
+        if (isBox(n) && !isSpacer(n)) return n;
+      }
+      return null;
+    }
+    function showBlock(el) {
+      if (curBlock && curBlock !== el) curBlock.removeAttribute('data-es-block');
+      curBlock = el && el.isConnected ? el : null;
+      if (curBlock) curBlock.setAttribute('data-es-block', '');
+      blkRow.hidden = !curBlock && !undoOp;
+      blkName.textContent = curBlock ? nameOf(curBlock) : '';
+      bar.querySelectorAll('[data-act=blkUp],[data-act=blkDown],[data-act=blkDup],[data-act=blkDel]').forEach((b) => { b.hidden = !curBlock; });
+      if (curBlock) {
+        bar.querySelector('[data-act=blkUp]').disabled = !siblingBlock(curBlock, -1);
+        bar.querySelector('[data-act=blkDown]').disabled = !siblingBlock(curBlock, 1);
+      }
+      blkUndo.hidden = !undoOp;
+    }
+    function trackBlock(node) {
+      if (!doc) return;
+      const b = node ? blockOf(node) : null;
+      if (b !== curBlock) showBlock(b);
+    }
+    function moveBlock(dir) {
+      const el = curBlock;
+      const other = el && siblingBlock(el, dir);
+      if (!other) return;
+      const mine = unitOf(el);
+      const ref = dir < 0 ? unitOf(other)[0] : other.nextSibling;
+      mine.forEach((n) => other.parentNode.insertBefore(n, ref));
+      undoOp = null;
+      showBlock(el);
+      el.scrollIntoView({ block: 'nearest' });
+      scheduleChange();
+    }
+    function duplicateBlock() {
+      const el = curBlock;
+      if (!el) return;
+      const nodes = unitOf(el).map((n) => n.cloneNode(true));
+      nodes.forEach((n) => { if (n.nodeType === 1) n.querySelectorAll('[data-es-sel],[data-es-block]').forEach((x) => { x.removeAttribute('data-es-sel'); x.removeAttribute('data-es-block'); }); });
+      const copy = nodes[nodes.length - 1];
+      copy.removeAttribute && copy.removeAttribute('data-es-block');
+      const ref = el.nextSibling;
+      nodes.forEach((n) => el.parentNode.insertBefore(n, ref));
+      undoOp = null;
+      showBlock(copy);
+      copy.scrollIntoView({ block: 'nearest' });
+      scheduleChange();
+      opts.toast('Copied. The copy is right below the original.');
+    }
+    function deleteBlock() {
+      const el = curBlock;
+      if (!el) return;
+      const nodes = unitOf(el);
+      const parent = el.parentNode;
+      const next = el.nextSibling;
+      const label = nameOf(el);
+      if (selectedImg && el.contains(selectedImg)) selectImage(null);
+      nodes.forEach((n) => n.remove());
+      undoOp = { nodes, parent, next, label };
+      curBlock = null;
+      lastRange = null;
+      showBlock(null);
+      blkName.textContent = 'Deleted "' + label + '"';
+      blkRow.hidden = false;
+      scheduleChange();
+    }
+    function undoDelete() {
+      const op = undoOp;
+      if (!op) return;
+      const ref = op.next && op.next.parentNode === op.parent ? op.next : null;
+      op.nodes.forEach((n) => op.parent.insertBefore(n, ref));
+      undoOp = null;
+      showBlock(op.nodes[op.nodes.length - 1]);
+      scheduleChange();
+    }
+
     /* ---------- toolbar actions ---------- */
     // Keep the email's text selection when a toolbar button is pressed.
     bar.addEventListener('mousedown', (e) => {
@@ -846,6 +981,11 @@
           }
           break;
         }
+        case 'blkUp': moveBlock(-1); break;
+        case 'blkDown': moveBlock(1); break;
+        case 'blkDup': duplicateBlock(); break;
+        case 'blkDel': deleteBlock(); break;
+        case 'blkUndo': undoDelete(); break;
         case 'undo':
           if (iframe.contentWindow) iframe.contentWindow.focus();
           doc.execCommand('undo');
@@ -929,10 +1069,14 @@
       if (img) {
         e.preventDefault();
         selectImage(img);
+        undoOp = null;
+        trackBlock(img);
         return;
       }
       if (closestEl(e.target, 'a')) e.preventDefault(); // never navigate the preview
       selectImage(null);
+      undoOp = null;
+      trackBlock(e.target);
       // Clicking somewhere that can't hold text: forget the old cursor spot, so a picture
       // is never dropped somewhere the person didn't pick.
       if (!closestEl(e.target, '[data-es-edit]')) lastRange = null;
@@ -1113,6 +1257,9 @@
       doc = d;
       selectedImg = null;
       lastRange = null;
+      curBlock = null;
+      undoOp = null;
+      showBlock(null);
       ui.imgRow.hidden = true;
 
       const st = doc.createElement('style');
