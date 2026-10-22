@@ -689,11 +689,25 @@
       scheduleChange();
     }
 
-    function insertImage(rec, atRange) {
+    // mode 'replace': swap the selected picture. mode 'add': put a NEW picture right after
+    // the selected one. With no picture selected either mode inserts at the cursor.
+    function insertImage(rec, atRange, mode) {
       if (!doc) return false;
-      if (!atRange && selectedImg && selectedImg.isConnected) {
-        setImageSrc(selectedImg, rec);
+      const sel0 = !atRange && selectedImg && selectedImg.isConnected ? selectedImg : null;
+      if (sel0 && mode !== 'add') {
+        setImageSrc(sel0, rec);
         return true;
+      }
+      if (sel0 && mode === 'add') {
+        let after = sel0;
+        const par = sel0.parentElement;
+        if (par && par.tagName === 'A' && par.childNodes.length === 1) after = par;
+        const r = doc.createRange();
+        r.setStartAfter(after);
+        r.collapse(true);
+        if (!closestEl(r.startContainer, '[data-es-edit]')) return false;
+        atRange = r;
+        selectImage(null);
       }
       if (atRange) {
         const sel = doc.getSelection();
@@ -919,6 +933,9 @@
       }
       if (closestEl(e.target, 'a')) e.preventDefault(); // never navigate the preview
       selectImage(null);
+      // Clicking somewhere that can't hold text: forget the old cursor spot, so a picture
+      // is never dropped somewhere the person didn't pick.
+      if (!closestEl(e.target, '[data-es-edit]')) lastRange = null;
     }
 
     function onKeyDown(e) {
@@ -1071,7 +1088,7 @@
       // Write any not-yet-saved visual edits back to the code now.
       flush,
       // Put a library picture at the cursor, or into the selected picture.
-      insertImage(rec) { return insertImage(rec); },
+      insertImage(rec, mode) { return insertImage(rec, null, mode); },
       hasSelectedImage() { return !!(selectedImg && selectedImg.isConnected); },
     };
   };

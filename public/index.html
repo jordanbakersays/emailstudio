@@ -122,7 +122,7 @@
   .card .meta{padding:7px 9px;font-size:12px}
   .card .meta b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
   .card .meta span{color:var(--muted)}
-  .card .acts{display:flex;gap:6px;padding:0 9px 9px}
+  .card .acts{display:flex;flex-wrap:wrap;gap:6px;padding:0 9px 9px}
   .card .acts button{padding:4px 8px;font-size:12px}
 
   #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#22252a;color:#fff;padding:9px 16px;border-radius:9px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:10;max-width:90vw}
@@ -1011,16 +1011,27 @@
       bCopy.onclick = async () => { await copyText(im.url); toast('Image URL copied'); };
       const bIns = document.createElement('button');
       const replacing = mode !== 'code' && ve.hasSelectedImage();
-      bIns.textContent = replacing ? 'Use' : 'Insert';
-      bIns.title = replacing
-        ? 'Replace the selected picture in the email with this one'
-        : 'Put this picture where your cursor is';
-      bIns.onclick = () => insertImage(im);
+      let bAdd = null;
+      if (replacing) {
+        // A picture is selected: say clearly which of the two things will happen.
+        bIns.textContent = 'Replace';
+        bIns.title = 'Swap the selected picture in the email for this one';
+        bIns.onclick = () => insertImage(im, 'replace');
+        bAdd = document.createElement('button');
+        bAdd.textContent = 'Add new';
+        bAdd.className = 'primary';
+        bAdd.title = 'Add this as an additional picture, right after the selected one';
+        bAdd.onclick = () => insertImage(im, 'add');
+      } else {
+        bIns.textContent = 'Insert';
+        bIns.title = 'Put this picture where your cursor is';
+        bIns.onclick = () => insertImage(im, 'add');
+      }
       const bDel = document.createElement('button');
       bDel.textContent = 'Delete';
       bDel.className = 'danger';
       bDel.onclick = () => deleteImage(im);
-      acts.append(bCopy, bIns, bDel);
+      acts.append(...[bCopy, bAdd, bIns, bDel].filter(Boolean));
 
       card.append(thumb, meta, acts);
       g.appendChild(card);
@@ -1029,14 +1040,15 @@
 
   // Put a library picture into the email. In the visual editor it goes where the
   // cursor is (or replaces the selected picture); in the code view it becomes an <img> tag.
-  function insertImage(im) {
+  function insertImage(im, how) {
     const visual = mode === 'visual' || (mode === 'split' && focusZone === 'preview');
     if (!visual) return insertImageIntoCode(im);
-    const replacing = ve.hasSelectedImage();
-    if (ve.insertImage(im)) {
+    const replacing = how === 'replace' && ve.hasSelectedImage();
+    if (ve.insertImage(im, how)) {
       toast(replacing ? 'Picture replaced' : 'Picture added. Describe it in the Alt text box above.');
+      if (!$('#drawer').hidden) renderImages();
     } else {
-      toast('Click where you want the picture in the email first, then choose it again.', true);
+      toast('Click in the text where you want the picture, then choose it again.', true);
     }
   }
 
