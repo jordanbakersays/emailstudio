@@ -59,6 +59,28 @@ different. The email itself looks and behaves the same.
 
 ---
 
+## Dark mode check
+
+The grey bar under the editor now also checks dark mode. It looks at how your email would appear with the dark-mode styles switched on. If a light block stays bright, or text becomes hard to read, you get "Not dark-mode friendly" and a **Fix for dark mode** button. The button adds dark colors for just those spots and the tags that tell email apps your email supports dark mode. It never changes your own dark-mode styling, and pressing it again changes nothing.
+
+Gmail and Outlook apps do their own color flipping and ignore these styles, so check important emails in a real dark-mode app.
+
+## If something goes wrong
+
+- **Refreshing the page** reopens the email you were working on.
+- **Unsaved work is backed up on that device.** If the page reloads, the tab
+  crashes or the connection drops, open the email again and click **Restore
+  them** in the red bar.
+- **Two people editing the same email:** if someone saved it after you opened
+  it, you're asked before replacing their version. Their version stays in
+  **History** either way.
+- **A master that looks unchanged:** saving a master creates a draft. A master
+  with drafts shows an **Open newest draft** button.
+- **Pasted text** is cleaned of colors, fonts and sizes so the email's own look
+  (including dark mode) stays in charge.
+
+---
+
 ## Using it on a phone
 
 On a phone the screen is simplified: tap **☰** for your list of emails, **Copy**
