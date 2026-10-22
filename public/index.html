@@ -370,6 +370,38 @@
     ve.render($('#code').value);
   }
 
+  /* ---------- keep pictures inside the email on phones ---------- */
+  // A picture with a fixed width (like width="400") and no maximum sticks out
+  // of the email on narrow screens. Adding max-width:100% lets it shrink there
+  // while staying its normal size on desktop.
+  function makeImagesResponsive(html) {
+    let count = 0;
+    const out = html.replace(/<img\b[^>]*>/gi, (tag) => {
+      const sm = tag.match(/\bstyle\s*=\s*(?:"([^"]*)"|'([^']*)')/i);
+      const style = sm ? (sm[1] !== undefined ? sm[1] : sm[2]) : '';
+      if (/max-width\s*:/i.test(style)) return tag;
+      const w = tag.match(/\bwidth\s*=\s*["']?(\d+)/i);
+      if (w && Number(w[1]) <= 4) return tag; // tracking pixels
+      count++;
+      let s = style.replace(/(^|;)\s*height\s*:[^;]*/gi, '$1').replace(/^[\s;]+|[\s;]+$/g, '');
+      s = (s ? s + ';' : '') + 'max-width:100%;height:auto';
+      if (sm) return tag.replace(sm[0], 'style="' + s.replace(/"/g, '&quot;') + '"');
+      return tag.replace(/\s*\/?>$/, (end) => ' style="' + s + '"' + end);
+    });
+    return { html: out, count };
+  }
+
+  function fixImages(quiet) {
+    ve.flush();
+    const r = makeImagesResponsive($('#code').value);
+    if (!r.count) return 0;
+    $('#code').value = r.html;
+    onEdit();
+    renderPreview();
+    if (!quiet) toast(`Fixed ${r.count} picture${r.count > 1 ? 's' : ''} so they fit on phones`);
+    return r.count;
+  }
+
   /* ---------- checks ---------- */
   function check(html) {
     const bytes = new Blob([html]).size;
@@ -408,6 +440,16 @@
       c.className = 'chip';
       c.textContent = i;
       s.appendChild(c);
+    }
+    const loose = makeImagesResponsive($('#code').value).count;
+    if (loose) {
+      const b = document.createElement('button');
+      b.className = 'chip';
+      b.style.cssText = 'border:0;cursor:pointer';
+      b.title = 'Lets pictures shrink on small screens (adds max-width:100%)';
+      b.textContent = `Fix ${loose} picture${loose > 1 ? 's' : ''} for phones`;
+      b.addEventListener('click', () => fixImages(false));
+      s.appendChild(b);
     }
   }
 
@@ -627,9 +669,11 @@
       if (!text.trim()) return toast('Clipboard is empty', true);
       if ($('#code').value.trim() && $('#code').value !== STARTER &&
           !confirm('Replace the current HTML with what is on your clipboard?')) return;
-      $('#code').value = text;
+      const r = makeImagesResponsive(text);
+      $('#code').value = r.html;
       onEdit();
       renderPreview();
+      if (r.count) toast(`Pasted. Made ${r.count} picture${r.count > 1 ? 's' : ''} phone-friendly.`);
     } catch {
       toast('Your browser blocked clipboard access. Click in the editor and press Ctrl/Cmd+V instead.', true);
     }

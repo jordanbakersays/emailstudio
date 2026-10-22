@@ -416,6 +416,11 @@
       if (st) {
         img.setAttribute('style', st.replace(/(^|;)\s*height\s*:\s*[\d.]+(px|%)\s*(?=;|$)/gi, '$1height:auto'));
       }
+      // Never let a swapped-in picture stick out of the email on phones.
+      if (!/max-width\s*:/i.test(img.getAttribute('style') || '')) {
+        const cur = (img.getAttribute('style') || '').replace(/[\s;]+$/, '');
+        img.setAttribute('style', (cur ? cur + ';' : '') + 'max-width:100%');
+      }
       scheduleChange();
     }
 
