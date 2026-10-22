@@ -62,6 +62,11 @@
   .chip{background:var(--warn-bg);color:var(--warn);border-radius:20px;padding:1px 9px}
   .chip.ok{background:#dcfce7;color:#166534}
 
+  /* top bar order on wide screens */
+  #menuBtn,#moreBtn,#scrim{display:none}
+  #bar #name{order:0}#bar #dirty{order:0}#pasteBtn{order:1}#copyBtn{order:2}#saveBtn{order:3}#lockBtn{order:4}#histBtn{order:5}#dupBtn{order:6}#delBtn{order:7}#imgBtn{order:8}
+  #bar{position:relative}
+
   /* masters, drafts, history */
   #banner{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 14px;border-bottom:1px solid var(--line);font-size:13px}
   #banner.master{background:#fef3c7;color:#78350f}
@@ -110,7 +115,7 @@
   #drop{margin:12px;border:2px dashed #cfc8b9;border-radius:10px;padding:16px;text-align:center;color:var(--muted);cursor:pointer}
   #drop.over{border-color:var(--accent);background:#e6f2f0;color:var(--accent)}
   #imgNote{margin:0 12px 8px;color:var(--muted);font-size:12px}
-  #grid{overflow:auto;flex:1;padding:0 12px 12px;display:grid;gap:10px;align-content:start}
+  #grid{overflow:auto;flex:1;padding:0 12px 12px;display:grid;gap:10px;align-content:start;grid-auto-rows:max-content}
   .card{border:1px solid var(--line);border-radius:9px;overflow:hidden;background:#fff}
   .card .thumb{height:110px;background:repeating-conic-gradient(#eee 0% 25%,#fff 0% 50%) 50%/16px 16px;display:grid;place-items:center}
   .card .thumb img{max-width:100%;max-height:110px;display:block}
@@ -125,12 +130,65 @@
   #toast.err{background:var(--danger)}
 
   @media (max-width:900px){
-    #app{grid-template-columns:1fr;grid-template-rows:auto 1fr}
-    #side{border-right:0;border-bottom:1px solid var(--line);max-height:34vh}
-    #panes{grid-template-columns:1fr;grid-template-rows:1fr 1fr}
-    #panes.mode-visual,#panes.mode-code{grid-template-rows:1fr}
-    #code{border-right:0;border-bottom:1px solid var(--line)}
-    #drawer{position:fixed;inset:0 0 0 auto;width:min(340px,100%);z-index:5;box-shadow:-4px 0 18px rgba(0,0,0,.18)}
+    #drawer{position:fixed;inset:0 0 0 auto;width:min(340px,100%);z-index:30;box-shadow:-4px 0 18px rgba(0,0,0,.18)}
+  }
+
+  /* Phones and small tablets: the email list slides in from the left, the top bar
+     keeps only the everyday buttons, and the editing area gets the whole screen. */
+  @media (max-width:820px){
+    #app{grid-template-columns:1fr;grid-template-rows:1fr;height:100vh;height:100dvh}
+    #login{height:100vh;height:100dvh}
+    #scrim{display:block;position:fixed;inset:0;background:rgba(20,22,26,.45);z-index:24;opacity:0;pointer-events:none;transition:opacity .2s}
+    body.side-open #scrim{opacity:1;pointer-events:auto}
+    #side{position:fixed;left:0;top:0;bottom:0;width:min(330px,88vw);z-index:25;border-right:1px solid var(--line);box-shadow:4px 0 22px rgba(0,0,0,.2);
+      transform:translateX(-102%);visibility:hidden;transition:transform .22s ease,visibility 0s .22s}
+    body.side-open #side{transform:none;visibility:visible;transition:transform .22s ease}
+    #list li{padding:11px 10px}
+
+    button{min-height:38px;touch-action:manipulation}
+    input[type=text],input[type=password],textarea,select{font-size:16px}
+
+    #bar{flex-wrap:nowrap;gap:6px;padding:8px 8px}
+    #menuBtn,#moreBtn{display:inline-block;font-size:20px;line-height:1;padding:6px 10px;flex:none}
+    #name{flex:1 1 60px;min-width:60px;font-size:16px;padding:7px 8px;order:0}
+    #dirty{font-size:0;min-width:0;order:0}
+    #dirty:not(:empty)::before{content:"";display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--warn);vertical-align:middle}
+    #bar .long{display:none}
+    #copyBtn,#saveBtn{flex:none;padding:6px 10px;order:0}
+    #menuBtn{order:-1}#moreBtn{order:20}
+    /* the less common buttons live behind the ... button and open as a panel under the bar */
+    #pasteBtn,#lockBtn,#histBtn,#dupBtn,#delBtn,#imgBtn{display:none;order:30}
+    #bar.more-open{flex-wrap:wrap}
+    #bar.more-open #pasteBtn,#bar.more-open #lockBtn,#bar.more-open #histBtn,
+    #bar.more-open #dupBtn,#bar.more-open #delBtn,#bar.more-open #imgBtn{display:block;flex:1 1 44%;text-align:left}
+    #bar.more-open #moreBtn{background:var(--accent);border-color:var(--accent);color:#fff}
+
+    #banner{padding:6px 10px;font-size:12px}
+    #tagbar{padding:6px 8px;flex-wrap:wrap}
+    #tagbar .lbl{display:none}
+    #tagInput{flex:1 1 120px;font-size:16px}
+    #modes button[data-mode=split]{display:none}
+    #modes{margin-left:auto}
+
+    #panes,#panes.mode-split{grid-template-columns:1fr;grid-template-rows:1fr}
+    #panes.mode-visual #code,#panes.mode-split #code{display:none}
+    #panes.mode-code #previewWrap{display:none}
+    #code{border-right:0;font-size:14px}
+    .pv-bar{display:none}
+    #pvNote{display:none}
+    .pv-stage{padding:0 4px 6px}
+    #fmt .ve-hint{display:none}
+    #app #fmt .ve-row{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:6px 8px;scrollbar-width:none}
+    #app #fmt .ve-row::-webkit-scrollbar{display:none}
+    #app #fmt .ve-row.ve-img{flex-wrap:wrap;overflow:visible}
+    #app #fmt .ve-grp,#app #fmt .ve-sep{flex:none}
+    #app #fmt .ve-row button{min-height:36px;padding:3px 11px;font-size:14px}
+    #app #fmt .ve-row select{font-size:16px;min-height:36px;max-width:120px}
+    #fmt .ve-alt{font-size:16px}
+    #status{padding:5px 10px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+    #status>*{flex:none;white-space:nowrap}
+    #status button.chip{order:-1}
+    #hist .box{max-height:88vh}
   }
 </style>
 </head>
@@ -156,6 +214,7 @@
   </div>
 </div>
 <div id="app" hidden>
+  <div id="scrim"></div>
   <aside id="side">
     <div class="brand">Email Studio</div>
     <button id="newBtn" class="primary">+ New email</button>
@@ -167,16 +226,18 @@
 
   <main>
     <div id="bar">
+      <button id="menuBtn" class="ghost" aria-label="Show my emails" title="My emails">&#9776;</button>
       <input id="name" type="text" placeholder="Email name" maxlength="120" aria-label="Email name">
       <span id="dirty"></span>
       <button id="pasteBtn" title="Replace the editor with whatever is on your clipboard">Paste HTML</button>
-      <button id="copyBtn" class="primary" title="Copy the HTML to paste into your church email tool">Copy HTML</button>
+      <button id="copyBtn" class="primary" title="Copy the HTML to paste into your church email tool">Copy<span class="long"> HTML</span></button>
       <button id="saveBtn" title="Ctrl/Cmd + S">Save</button>
       <button id="lockBtn" title="Protect this as the approved version" hidden>🔒 Make master</button>
       <button id="histBtn" title="See and restore earlier versions" hidden>History</button>
       <button id="dupBtn">Duplicate</button>
       <button id="delBtn" class="danger">Delete</button>
       <button id="imgBtn">Images</button>
+      <button id="moreBtn" aria-label="More actions" aria-expanded="false">&#8943;</button>
     </div>
 
     <div id="banner" hidden></div>
@@ -257,6 +318,7 @@
   let activeTag = null;                 // null = show all
   const UNTAGGED = '\u0001untagged';    // special filter value
   const MAX_TAGS = 5;
+  const smallScreen = window.matchMedia('(max-width: 820px)');
   let mode = 'visual';                  // 'visual' | 'split' | 'code'
   let focusZone = 'preview';            // where the cursor last was (matters in split view)
   let draggedImage = null;              // library picture being dragged into the preview
@@ -412,10 +474,12 @@
     f.style.height = '';
     f.style.flexShrink = '';
     if (!stage || !stage.clientWidth) return;       // hidden (Code view); redone when shown
-    if (previewDevice !== 'phone') {
+    // Small screens always get the phone-style fit; a wide email is shrunk to fit.
+    const phoneish = previewDevice === 'phone' || smallScreen.matches;
+    if (!phoneish) {
       f.style.width = '100%';
     } else {
-      const vw = Math.max(200, Math.min(PHONE_W, stage.clientWidth - 24));
+      const vw = Math.max(200, Math.min(PHONE_W, stage.clientWidth - (smallScreen.matches ? 8 : 24)));
       f.style.width = vw + 'px';
       const d = f.contentDocument;
       const natural = d && d.documentElement
@@ -489,7 +553,7 @@
 
   function renderStatus() {
     const { bytes, issues } = check($('#code').value);
-    if (previewDevice === 'phone' && phoneNatural) {
+    if (phoneNatural) {
       issues.push(`Not mobile-friendly: ${phoneNatural}px wide, so phones will shrink it`);
     }
     const s = $('#status');
@@ -680,6 +744,7 @@
   }
 
   async function openTemplate(id) {
+    closeSide();
     if (id === cur.id) return;
     if (!confirmDiscard()) return;
     try {
@@ -1136,6 +1201,7 @@
     if (saved === 'visual' || saved === 'split' || saved === 'code') mode = saved;
   } catch {}
   setMode(mode);
+  applyScreenSize();
   $('#code').addEventListener('input', onEdit);
   $('#code').addEventListener('keydown', (e) => {
     if (e.key === 'Tab' && !e.shiftKey) {
@@ -1163,7 +1229,29 @@
   $('#tagInput').addEventListener('change', (e) => {
     if (e.target.value.trim()) { addTag(e.target.value); e.target.value = ''; }
   });
-  $('#newBtn').addEventListener('click', () => newEmail(false));
+  $('#newBtn').addEventListener('click', () => { newEmail(false); closeSide(); });
+
+  /* ---------- small-screen helpers ---------- */
+  function closeSide() { document.body.classList.remove('side-open'); }
+  function closeMore() { $('#bar').classList.remove('more-open'); $('#moreBtn').setAttribute('aria-expanded', 'false'); }
+  $('#menuBtn').addEventListener('click', () => { closeMore(); document.body.classList.toggle('side-open'); });
+  $('#scrim').addEventListener('click', closeSide);
+  $('#moreBtn').addEventListener('click', () => {
+    const open = $('#bar').classList.toggle('more-open');
+    $('#moreBtn').setAttribute('aria-expanded', String(open));
+    fitPreview();
+  });
+  // Choosing anything from the ... panel closes it again.
+  $('#bar').addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (b && b.id !== 'moreBtn' && b.id !== 'menuBtn' && $('#bar').classList.contains('more-open')) { closeMore(); fitPreview(); }
+  });
+  function applyScreenSize() {
+    if (smallScreen.matches && mode === 'split') setMode('visual');
+    if (!smallScreen.matches) { closeSide(); closeMore(); }
+    fitPreview();
+  }
+  smallScreen.addEventListener('change', applyScreenSize);
   $('#saveBtn').addEventListener('click', save);
   $('#dupBtn').addEventListener('click', duplicate);
   $('#delBtn').addEventListener('click', remove);
@@ -1207,6 +1295,8 @@
     showApp();
     loadIntoEditor({ id: null, name: 'Untitled email', html: STARTER });
     try { await loadTemplates(); } catch (e) { toast(e.message, true); }
+    // On a phone, start on the list of emails.
+    if (smallScreen.matches && templates.length) document.body.classList.add('side-open');
   }
 
   (async () => {

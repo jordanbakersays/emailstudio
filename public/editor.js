@@ -199,7 +199,7 @@
       #fmt .ve-row button.on{background:var(--accent);border-color:var(--accent);color:#fff}
       #fmt .ve-row select{font:inherit;font-size:12px;padding:3px 4px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--ink);max-width:110px}
       #fmt .ve-pw{position:relative;display:inline-block}
-      #fmt .ve-pop{position:absolute;top:calc(100% + 4px);left:0;z-index:15;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px;box-shadow:0 8px 28px rgba(0,0,0,.22);display:grid;gap:6px;width:176px}
+      #fmt .ve-pop{position:fixed;z-index:40;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px;box-shadow:0 8px 28px rgba(0,0,0,.22);display:grid;gap:6px;width:176px}
       #fmt .ve-pop[hidden]{display:none}
       #fmt .ve-sw{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
       #fmt .ve-sw button{width:28px;height:28px;padding:0;border-radius:6px;border:1px solid rgba(0,0,0,.25)}
@@ -814,9 +814,11 @@
           closePops();
           pop.hidden = !open;
           if (open) {
-            pop.style.left = '0';
-            pop.style.right = 'auto';
-            if (pop.getBoundingClientRect().right > window.innerWidth - 8) { pop.style.left = 'auto'; pop.style.right = '0'; }
+            // Fixed position so it isn't clipped when the toolbar scrolls sideways on a phone.
+            const r = b.getBoundingClientRect();
+            const w = pop.offsetWidth || 176;
+            pop.style.top = r.bottom + 4 + 'px';
+            pop.style.left = Math.max(6, Math.min(r.left, window.innerWidth - w - 6)) + 'px';
           }
           break;
         }
