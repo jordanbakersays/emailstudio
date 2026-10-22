@@ -673,7 +673,26 @@
     }
 
     /* ---------- pictures ---------- */
+    // If the cursor has moved somewhere else (arrow keys, dragging, a tap), the picture that
+    // was selected earlier no longer counts, so new pictures go where the cursor is.
+    let imgPickedAt = 0;
+    function dropStalePicture() {
+      if (!selectedImg || !selectedImg.isConnected || Date.now() - imgPickedAt < 400) return;
+      const sel = doc.getSelection();
+      if (!sel || !sel.rangeCount || !selectionHost()) return;
+      let touches = false;
+      try {
+        const r = sel.getRangeAt(0);
+        touches = r.intersectsNode(selectedImg);
+        // a caret right next to the picture (where the browser leaves it after inserting) counts too
+        const par = selectedImg.parentNode;
+        const at = par ? Array.prototype.indexOf.call(par.childNodes, selectedImg) : -1;
+        if (!touches && r.collapsed && r.startContainer === par && (r.startOffset === at || r.startOffset === at + 1)) touches = true;
+      } catch (e) { /* ignore */ }
+      if (!touches) selectImage(null);
+    }
     function selectImage(img) {
+      if (img) imgPickedAt = Date.now();
       if (selectedImg && selectedImg !== img) selectedImg.removeAttribute('data-es-sel');
       selectedImg = img || null;
       if (img) {
@@ -1245,7 +1264,7 @@
       d.addEventListener('dragover', onDragOver);
       d.addEventListener('dragleave', (e) => { if (!e.relatedTarget) clearDropMark(); });
       d.addEventListener('drop', onDrop);
-      d.addEventListener('selectionchange', () => { rememberRange(); updateState(); });
+      d.addEventListener('selectionchange', () => { rememberRange(); dropStalePicture(); updateState(); });
       d.addEventListener('mousedown', () => { if (opts.onFocus) opts.onFocus(); });
       d.addEventListener('focusin', () => { if (opts.onFocus) opts.onFocus(); });
     }

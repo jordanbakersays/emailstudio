@@ -325,6 +325,7 @@
   const MAX_TAGS = 5;
   const smallScreen = window.matchMedia('(max-width: 820px)');
   let mode = 'visual';                  // 'visual' | 'split' | 'code'
+  let codeCaretSet = false;             // false until the person puts a cursor in the code box
   let focusZone = 'preview';            // where the cursor last was (matters in split view)
   let draggedImage = null;              // library picture being dragged into the preview
   const PHONE_W = 375;                  // width of the phone preview
@@ -1218,7 +1219,14 @@
   function insertImageIntoCode(im) {
     const el = $('#code');
     const tag = `<img src="${im.url}" alt="" width="600" style="display:block;width:100%;max-width:600px;height:auto;border:0;">`;
+    // Only insert where the person actually put the cursor. A freshly loaded email has its
+    // cursor at the very end (after </html>), which would stack every picture at the bottom.
     const pos = el.selectionEnd ?? el.value.length;
+    const body = el.value.search(/<\/body\s*>/i);
+    if (!codeCaretSet || (body >= 0 && pos > body)) {
+      toast('Click in the code where you want the picture, then choose it again.', true);
+      return;
+    }
     el.setRangeText(tag, pos, pos, 'end');
     el.focus();
     onEdit();
@@ -1368,6 +1376,17 @@
   document.querySelectorAll('#modes button').forEach((b) =>
     b.addEventListener('click', () => { ve.flush(); setMode(b.dataset.mode); }));
   $('#code').addEventListener('focus', () => { focusZone = 'code'; });
+  // The code box only has a real cursor once the person has clicked or typed in it.
+  // Any time the program (not the person) rewrites the code, its cursor jumps to the end.
+  (function () {
+    const d = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
+    Object.defineProperty($('#code'), 'value', {
+      configurable: true,
+      get() { return d.get.call(this); },
+      set(v) { codeCaretSet = false; d.set.call(this, v); },
+    });
+  })();
+  for (const ev of ['mouseup', 'keyup', 'touchend']) $('#code').addEventListener(ev, () => { codeCaretSet = true; });
   $('#preview').addEventListener('load', fitPreview);
   let resizeTimer;
   window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(fitPreview, 150); });
