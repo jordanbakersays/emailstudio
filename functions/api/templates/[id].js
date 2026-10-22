@@ -48,6 +48,20 @@ export async function onRequestPut({ params, request, env }) {
     name !== existing.name ||
     JSON.stringify(tags) !== JSON.stringify(normalizeTags(existing.tags));
 
+  // Two people editing the same email: if it was saved by someone else after this
+  // person opened it, don't silently overwrite. (The old version is kept in History.)
+  if (
+    contentChanged &&
+    typeof body.baseUpdated === 'string' &&
+    body.baseUpdated !== existing.updated &&
+    body.force !== true
+  ) {
+    return json(
+      { error: 'Someone else saved this email after you opened it.', conflict: true, updated: existing.updated },
+      409,
+    );
+  }
+
   // Master templates can't be changed by accident: the request must say so.
   if (wasMaster && contentChanged && body.overwrite !== true) {
     return json({ error: 'This is a master template. Save your changes as a draft instead.', master: true }, 409);
