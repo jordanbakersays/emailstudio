@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Email Studio</title>
+<style>
+  :root{
+    --bg:#f6f4ef; --panel:#fffdf9; --line:#e3ded3; --ink:#22252a; --muted:#6b6f76;
+    --accent:#0f766e; --accent-ink:#fff; --danger:#b42318; --warn:#92400e; --warn-bg:#fef3c7;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--bg)}
+  [hidden]{display:none!important}
+  button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:6px 11px;border-radius:7px;white-space:nowrap}
+  button:hover{border-color:#cfc8b9;background:#fff}
+  button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+  button.primary:hover{filter:brightness(1.1)}
+  button.danger{color:var(--danger)}
+  button.ghost{border-color:transparent;background:transparent}
+  button:disabled{opacity:.5;cursor:default}
+  input[type=text],input[type=password]{font:inherit;padding:7px 10px;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--ink);min-width:0}
+  input:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+
+  /* login */
+  #login{height:100%;display:grid;place-items:center;padding:20px}
+  #login form{width:100%;max-width:340px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:26px;display:grid;gap:12px}
+  #login h1{margin:0;font-size:20px}
+  #login p{margin:0;color:var(--muted)}
+  #loginErr{color:var(--danger);min-height:1.2em}
+
+  /* app shell */
+  #app{height:100%;display:grid;grid-template-columns:240px 1fr auto}
+  #side{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;gap:10px;padding:14px;min-height:0}
+  .brand{font-weight:700;font-size:16px;letter-spacing:.2px}
+  #list{list-style:none;margin:0;padding:0;overflow:auto;flex:1;display:grid;gap:2px;align-content:start}
+  #list li{padding:8px 10px;border-radius:7px;cursor:pointer;border:1px solid transparent}
+  #list li:hover{background:#f1eee6}
+  #list li.active{background:#e6f2f0;border-color:#bfe0db}
+  #list .t-name{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #list .t-date{display:block;color:var(--muted);font-size:12px}
+  #list .empty{color:var(--muted);cursor:default;padding:8px 10px}
+  #list .empty:hover{background:none}
+
+  main{display:flex;flex-direction:column;min-width:0;min-height:0}
+  #bar{display:flex;gap:8px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
+  #name{flex:1 1 220px;font-weight:600;font-size:15px}
+  #dirty{color:var(--warn);font-size:12px;min-width:5.5em}
+  #panes{flex:1;display:grid;grid-template-columns:1fr 1fr;min-height:0}
+  #code{border:0;border-right:1px solid var(--line);resize:none;padding:14px;font:13px/1.5 var(--mono);background:#fff;color:#1b1f24;tab-size:2;white-space:pre-wrap;overflow-wrap:anywhere;overflow:auto;min-height:0}
+  #previewWrap{display:flex;flex-direction:column;min-width:0;min-height:0;background:#e9e6dd}
+  .pv-bar{display:flex;gap:6px;align-items:center;padding:8px 12px;color:var(--muted);font-size:12px}
+  .pv-bar button{padding:3px 9px;font-size:12px}
+  .pv-bar button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .pv-stage{flex:1;overflow:auto;display:flex;justify-content:center;padding:0 12px 12px}
+  #preview{border:0;background:#fff;width:100%;height:100%;min-height:300px;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.12)}
+  #status{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:7px 14px;border-top:1px solid var(--line);background:var(--panel);font-size:12px;color:var(--muted)}
+  .chip{background:var(--warn-bg);color:var(--warn);border-radius:20px;padding:1px 9px}
+  .chip.ok{background:#dcfce7;color:#166534}
+
+  /* image drawer */
+  #drawer{width:340px;background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+  #drawer header{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line);font-weight:700}
+  #drop{margin:12px;border:2px dashed #cfc8b9;border-radius:10px;padding:16px;text-align:center;color:var(--muted);cursor:pointer}
+  #drop.over{border-color:var(--accent);background:#e6f2f0;color:var(--accent)}
+  #imgNote{margin:0 12px 8px;color:var(--muted);font-size:12px}
+  #grid{overflow:auto;flex:1;padding:0 12px 12px;display:grid;gap:10px;align-content:start}
+  .card{border:1px solid var(--line);border-radius:9px;overflow:hidden;background:#fff}
+  .card .thumb{height:110px;background:repeating-conic-gradient(#eee 0% 25%,#fff 0% 50%) 50%/16px 16px;display:grid;place-items:center}
+  .card .thumb img{max-width:100%;max-height:110px;display:block}
+  .card .meta{padding:7px 9px;font-size:12px}
+  .card .meta b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+  .card .meta span{color:var(--muted)}
+  .card .acts{display:flex;gap:6px;padding:0 9px 9px}
+  .card .acts button{padding:4px 8px;font-size:12px}
+
+  #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#22252a;color:#fff;padding:9px 16px;border-radius:9px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:10;max-width:90vw}
+  #toast.show{opacity:1}
+  #toast.err{background:var(--danger)}
+
+  @media (max-width:900px){
+    #app{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+    #side{border-right:0;border-bottom:1px solid var(--line);max-height:34vh}
+    #panes{grid-template-columns:1fr;grid-template-rows:1fr 1fr}
+    #code{border-right:0;border-bottom:1px solid var(--line)}
+    #drawer{position:fixed;inset:0 0 0 auto;width:min(340px,100%);z-index:5;box-shadow:-4px 0 18px rgba(0,0,0,.18)}
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<section id="login" hidden>
+  <form id="loginForm">
+    <h1>Email Studio</h1>
+    <p>Enter the password to continue.</p>
+    <input id="pw" type="password" placeholder="Password" autocomplete="current-password" required>
+    <button class="primary" type="submit">Sign in</button>
+    <div id="loginErr" role="alert"></div>
+  </form>
+</section>
+
+<!-- APP -->
+<div id="app" hidden>
+  <aside id="side">
+    <div class="brand">Email Studio</div>
+    <button id="newBtn" class="primary">+ New email</button>
+    <input id="filter" type="text" placeholder="Search templates">
+    <ul id="list"></ul>
+    <button id="logoutBtn" class="ghost">Log out</button>
+  </aside>
+
+  <main>
+    <div id="bar">
+      <input id="name" type="text" placeholder="Email name" maxlength="120" aria-label="Email name">
+      <span id="dirty"></span>
+      <button id="pasteBtn" title="Replace the editor with whatever is on your clipboard">Paste HTML</button>
+      <button id="copyBtn" class="primary" title="Copy the HTML to paste into your church email tool">Copy HTML</button>
+      <button id="saveBtn" title="Ctrl/Cmd + S">Save</button>
+      <button id="dupBtn">Duplicate</button>
+      <button id="delBtn" class="danger">Delete</button>
+      <button id="imgBtn">Images</button>
+    </div>
+
+    <div id="panes">
+      <textarea id="code" spellcheck="false" aria-label="HTML"></textarea>
+      <div id="previewWrap">
+        <div class="pv-bar">
+          <span>Preview</span>
+          <button data-w="100%" class="on">Desktop</button>
+          <button data-w="375px">Phone</button>
+        </div>
+        <div class="pv-stage"><iframe id="preview" sandbox title="Email preview"></iframe></div>
+      </div>
+    </div>
+
+    <div id="status"></div>
+  </main>
+
+  <aside id="drawer" hidden>
+    <header><span>Image library</span><button id="closeImg" class="ghost" aria-label="Close">✕</button></header>
+    <div id="drop">Drop images here, or click to choose<br><small>PNG, JPG, GIF or WebP · up to 10 MB</small></div>
+    <input id="file" type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden>
+    <p id="imgNote">Every image gets a permanent link. Deleting one breaks it in any email already sent.</p>
+    <div id="grid"></div>
+  </aside>
+</div>
+
+<div id="toast" role="status"></div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+
+  const STARTER = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Email</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f4f4;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f4f4;">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background:#ffffff;">
+          <tr>
+            <td style="padding:28px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.5;color:#222222;">
+              <h1 style="margin:0 0 12px;font-size:24px;">Hello!</h1>
+              <p style="margin:0;">Start typing, or click <b>Paste HTML</b> to bring in an existing email.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`;
+
+  let templates = [];
+  let cur = { id: null, name: 'Untitled email', html: STARTER };
+  let dirty = false;
+  let previewTimer = null;
+
+  /* ---------- helpers ---------- */
+  async function api(path, opts = {}) {
+    const res = await fetch(path, { credentials: 'same-origin', ...opts });
+    if (res.status === 401) { showLogin(); throw new Error('Please sign in again.'); }
+    let data = null;
+    try { data = await res.json(); } catch {}
+    if (!res.ok) throw new Error((data && data.error) || `Request failed (${res.status})`);
+    return data;
+  }
+  const jsonBody = (method, obj) => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) });
+
+  let toastTimer;
+  function toast(msg, isErr = false) {
+    const t = $('#toast');
+    t.textContent = msg;
+    t.className = 'show' + (isErr ? ' err' : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => (t.className = ''), isErr ? 4500 : 1800);
+  }
+
+  async function copyText(text) {
+    try { await navigator.clipboard.writeText(text); }
+    catch {
+      const ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); ta.remove();
+    }
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+  function fmtSize(n) {
+    return n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+  }
+
+  /* ---------- login ---------- */
+  function showLogin() {
+    $('#app').hidden = true;
+    $('#login').hidden = false;
+    $('#pw').value = '';
+    $('#pw').focus();
+  }
+  function showApp() {
+    $('#login').hidden = true;
+    $('#app').hidden = false;
+  }
+
+  $('#loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    $('#loginErr').textContent = '';
+    const btn = e.target.querySelector('button');
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/login', jsonBody('POST', { password: $('#pw').value }));
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not sign in');
+      await start();
+    } catch (err) {
+      $('#loginErr').textContent = err.message;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  $('#logoutBtn').addEventListener('click', async () => {
+    if (dirty && !confirm('You have unsaved changes. Log out anyway?')) return;
+    dirty = false;
+    await fetch('/api/session', { method: 'DELETE', credentials: 'same-origin' });
+    showLogin();
+  });
+
+  /* ---------- editor state ---------- */
+  function setDirty(v) {
+    dirty = v;
+    $('#dirty').textContent = v ? '● Unsaved' : '';
+  }
+
+  function loadIntoEditor(t) {
+    cur = { id: t.id || null, name: t.name || 'Untitled email', html: t.html ?? '' };
+    $('#name').value = cur.name;
+    $('#code').value = cur.html;
+    setDirty(false);
+    renderPreview();
+    renderStatus();
+    renderList();
+  }
+
+  function onEdit() {
+    cur.html = $('#code').value;
+    setDirty(true);
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(renderPreview, 200);
+    renderStatus();
+  }
+
+  function renderPreview() {
+    $('#preview').srcdoc = $('#code').value;
+  }
+
+  /* ---------- checks ---------- */
+  function check(html) {
+    const bytes = new Blob([html]).size;
+    const issues = [];
+    if (bytes > 100 * 1024) issues.push('Over ~100 KB: Gmail will clip this email');
+    const imgs = html.match(/<img\b[^>]*>/gi) || [];
+    const badSrc = imgs.filter((t) => {
+      const m = t.match(/\bsrc\s*=\s*["']?([^"'\s>]*)/i);
+      return !m || !/^https:\/\//i.test(m[1]);
+    }).length;
+    if (badSrc) issues.push(`${badSrc} image${badSrc > 1 ? 's' : ''} without a full https:// link`);
+    const noAlt = imgs.filter((t) => !/\balt\s*=/i.test(t)).length;
+    if (noAlt) issues.push(`${noAlt} image${noAlt > 1 ? 's' : ''} missing alt text`);
+    if (/<script\b/i.test(html)) issues.push('Contains <script> (email apps strip it)');
+    return { bytes, issues };
+  }
+
+  function renderStatus() {
+    const { bytes, issues } = check($('#code').value);
+    const s = $('#status');
+    s.textContent = '';
+    const size = document.createElement('span');
+    size.textContent = fmtSize(bytes);
+    s.appendChild(size);
+    if (!issues.length) {
+      const ok = document.createElement('span');
+      ok.className = 'chip ok';
+      ok.textContent = 'Looks good';
+      s.appendChild(ok);
+    }
+    for (const i of issues) {
+      const c = document.createElement('span');
+      c.className = 'chip';
+      c.textContent = i;
+      s.appendChild(c);
+    }
+  }
+
+  /* ---------- template list ---------- */
+  function renderList() {
+    const q = $('#filter').value.trim().toLowerCase();
+    const ul = $('#list');
+    ul.textContent = '';
+    const shown = templates.filter((t) => t.name.toLowerCase().includes(q));
+    if (!shown.length) {
+      const li = document.createElement('li');
+      li.className = 'empty';
+      li.textContent = templates.length ? 'No matches' : 'No saved emails yet';
+      ul.appendChild(li);
+      return;
+    }
+    for (const t of shown) {
+      const li = document.createElement('li');
+      if (t.id === cur.id) li.className = 'active';
+      const n = document.createElement('span');
+      n.className = 't-name';
+      n.textContent = t.name;
+      const d = document.createElement('span');
+      d.className = 't-date';
+      d.textContent = fmtDate(t.updated);
+      li.append(n, d);
+      li.addEventListener('click', () => openTemplate(t.id));
+      ul.appendChild(li);
+    }
+  }
+
+  async function loadTemplates() {
+    const data = await api('/api/templates');
+    templates = data.templates;
+    renderList();
+  }
+
+  function confirmDiscard() {
+    return !dirty || confirm('You have unsaved changes. Discard them?');
+  }
+
+  async function openTemplate(id) {
+    if (id === cur.id) return;
+    if (!confirmDiscard()) return;
+    try {
+      loadIntoEditor(await api('/api/templates/' + id));
+    } catch (e) { toast(e.message, true); }
+  }
+
+  /* ---------- actions ---------- */
+  async function save() {
+    const name = $('#name').value.trim() || 'Untitled email';
+    const html = $('#code').value;
+    $('#saveBtn').disabled = true;
+    try {
+      if (cur.id) {
+        const r = await api('/api/templates/' + cur.id, jsonBody('PUT', { name, html }));
+        const row = templates.find((t) => t.id === cur.id);
+        if (row) { row.name = r.name; row.updated = r.updated; }
+      } else {
+        const r = await api('/api/templates', jsonBody('POST', { name, html }));
+        cur.id = r.id;
+        templates.unshift({ id: r.id, name: r.name, updated: r.updated });
+      }
+      cur.name = name;
+      $('#name').value = name;
+      templates.sort((a, b) => (b.updated || '').localeCompare(a.updated || ''));
+      setDirty(false);
+      renderList();
+      toast('Saved');
+    } catch (e) { toast(e.message, true); }
+    finally { $('#saveBtn').disabled = false; }
+  }
+
+  async function duplicate() {
+    const name = ($('#name').value.trim() || 'Untitled email') + ' (copy)';
+    try {
+      const r = await api('/api/templates', jsonBody('POST', { name, html: $('#code').value }));
+      templates.unshift({ id: r.id, name: r.name, updated: r.updated });
+      cur.id = r.id;
+      cur.name = r.name;
+      $('#name').value = r.name;
+      setDirty(false);
+      renderList();
+      toast('Duplicated');
+    } catch (e) { toast(e.message, true); }
+  }
+
+  async function remove() {
+    if (!cur.id) { if (confirmDiscard()) newEmail(true); return; }
+    if (!confirm(`Delete "${cur.name}"? This can't be undone.`)) return;
+    try {
+      await api('/api/templates/' + cur.id, { method: 'DELETE' });
+      templates = templates.filter((t) => t.id !== cur.id);
+      newEmail(true);
+      toast('Deleted');
+    } catch (e) { toast(e.message, true); }
+  }
+
+  function newEmail(skipConfirm) {
+    if (!skipConfirm && !confirmDiscard()) return;
+    loadIntoEditor({ id: null, name: 'Untitled email', html: STARTER });
+  }
+
+  async function copyHtml() {
+    await copyText($('#code').value);
+    toast('HTML copied');
+  }
+
+  async function pasteHtml() {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text.trim()) return toast('Clipboard is empty', true);
+      if ($('#code').value.trim() && $('#code').value !== STARTER &&
+          !confirm('Replace the current HTML with what is on your clipboard?')) return;
+      $('#code').value = text;
+      onEdit();
+      renderPreview();
+    } catch {
+      toast('Your browser blocked clipboard access. Click in the editor and press Ctrl/Cmd+V instead.', true);
+    }
+  }
+
+  /* ---------- images ---------- */
+  let images = [];
+
+  async function loadImages() {
+    try {
+      images = (await api('/api/images')).images;
+      renderImages();
+    } catch (e) { toast(e.message, true); }
+  }
+
+  function renderImages() {
+    const g = $('#grid');
+    g.textContent = '';
+    if (!images.length) {
+      const p = document.createElement('p');
+      p.style.color = 'var(--muted)';
+      p.textContent = 'No images yet.';
+      g.appendChild(p);
+      return;
+    }
+    for (const im of images) {
+      const card = document.createElement('div');
+      card.className = 'card';
+
+      const thumb = document.createElement('div');
+      thumb.className = 'thumb';
+      const img = document.createElement('img');
+      img.src = im.url; img.alt = ''; img.loading = 'lazy';
+      thumb.appendChild(img);
+
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      const b = document.createElement('b');
+      b.textContent = im.name;
+      b.title = im.name;
+      const sp = document.createElement('span');
+      sp.textContent = `${fmtSize(im.size)} · ${fmtDate(im.uploaded)}`;
+      meta.append(b, sp);
+
+      const acts = document.createElement('div');
+      acts.className = 'acts';
+      const bCopy = document.createElement('button');
+      bCopy.textContent = 'Copy URL';
+      bCopy.onclick = async () => { await copyText(im.url); toast('Image URL copied'); };
+      const bIns = document.createElement('button');
+      bIns.textContent = 'Insert';
+      bIns.title = 'Insert an <img> tag at the cursor';
+      bIns.onclick = () => insertImage(im);
+      const bDel = document.createElement('button');
+      bDel.textContent = 'Delete';
+      bDel.className = 'danger';
+      bDel.onclick = () => deleteImage(im);
+      acts.append(bCopy, bIns, bDel);
+
+      card.append(thumb, meta, acts);
+      g.appendChild(card);
+    }
+  }
+
+  function insertImage(im) {
+    const el = $('#code');
+    const tag = `<img src="${im.url}" alt="" width="600" style="display:block;width:100%;max-width:600px;height:auto;border:0;">`;
+    const pos = el.selectionEnd ?? el.value.length;
+    el.setRangeText(tag, pos, pos, 'end');
+    el.focus();
+    onEdit();
+    toast('Inserted. Add alt text between the quotes after alt=');
+  }
+
+  async function deleteImage(im) {
+    if (!confirm(`Delete "${im.name}"?\n\nAny email that already uses it will show a broken image.`)) return;
+    try {
+      await api('/api/images/' + encodeURIComponent(im.key), { method: 'DELETE' });
+      images = images.filter((x) => x.key !== im.key);
+      renderImages();
+    } catch (e) { toast(e.message, true); }
+  }
+
+  async function upload(fileList) {
+    const files = [...fileList].filter((f) => f.type.startsWith('image/'));
+    if (!files.length) return toast('Choose PNG, JPG, GIF or WebP images', true);
+    const fd = new FormData();
+    files.forEach((f) => fd.append('file', f));
+    $('#drop').textContent = `Uploading ${files.length} file${files.length > 1 ? 's' : ''}…`;
+    try {
+      const res = await fetch('/api/images', { method: 'POST', body: fd, credentials: 'same-origin' });
+      if (res.status === 401) { showLogin(); return; }
+      const data = await res.json().catch(() => ({}));
+      if (data.rejected && data.rejected.length) {
+        toast(data.rejected.map((r) => `${r.name}: ${r.reason}`).join(' · '), true);
+      } else if (!res.ok) {
+        throw new Error(data.error || 'Upload failed');
+      } else {
+        toast(`Uploaded ${data.uploaded.length}`);
+      }
+      await loadImages();
+    } catch (e) { toast(e.message, true); }
+    finally {
+      $('#drop').innerHTML = 'Drop images here, or click to choose<br><small>PNG, JPG, GIF or WebP · up to 10 MB</small>';
+      $('#file').value = '';
+    }
+  }
+
+  function toggleDrawer(show) {
+    const d = $('#drawer');
+    const open = show ?? d.hidden;
+    d.hidden = !open;
+    if (open) loadImages();
+  }
+
+  /* ---------- wiring ---------- */
+  $('#code').addEventListener('input', onEdit);
+  $('#code').addEventListener('keydown', (e) => {
+    if (e.key === 'Tab' && !e.shiftKey) {
+      e.preventDefault();
+      const el = e.target;
+      el.setRangeText('  ', el.selectionStart, el.selectionEnd, 'end');
+      onEdit();
+    }
+  });
+  $('#name').addEventListener('input', () => setDirty(true));
+  $('#filter').addEventListener('input', renderList);
+  $('#newBtn').addEventListener('click', () => newEmail(false));
+  $('#saveBtn').addEventListener('click', save);
+  $('#dupBtn').addEventListener('click', duplicate);
+  $('#delBtn').addEventListener('click', remove);
+  $('#copyBtn').addEventListener('click', copyHtml);
+  $('#pasteBtn').addEventListener('click', pasteHtml);
+  $('#imgBtn').addEventListener('click', () => toggleDrawer());
+  $('#closeImg').addEventListener('click', () => toggleDrawer(false));
+
+  $('#drop').addEventListener('click', () => $('#file').click());
+  $('#file').addEventListener('change', (e) => e.target.files.length && upload(e.target.files));
+  ['dragenter', 'dragover'].forEach((ev) =>
+    $('#drop').addEventListener(ev, (e) => { e.preventDefault(); $('#drop').classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((ev) =>
+    $('#drop').addEventListener(ev, (e) => { e.preventDefault(); $('#drop').classList.remove('over'); }));
+  $('#drop').addEventListener('drop', (e) => upload(e.dataTransfer.files));
+
+  document.querySelectorAll('.pv-bar button').forEach((b) =>
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.pv-bar button').forEach((x) => x.classList.remove('on'));
+      b.classList.add('on');
+      $('#preview').style.width = b.dataset.w;
+    }));
+
+  window.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      if (!$('#app').hidden) save();
+    }
+  });
+  window.addEventListener('beforeunload', (e) => {
+    if (dirty) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  /* ---------- boot ---------- */
+  async function start() {
+    showApp();
+    loadIntoEditor({ id: null, name: 'Untitled email', html: STARTER });
+    try { await loadTemplates(); } catch (e) { toast(e.message, true); }
+  }
+
+  (async () => {
+    try {
+      const r = await fetch('/api/session', { credentials: 'same-origin' });
+      const d = await r.json();
+      if (d.authed) await start(); else showLogin();
+    } catch { showLogin(); }
+  })();
+})();
+</script>
+</body>
+</html>
