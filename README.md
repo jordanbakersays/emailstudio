@@ -42,7 +42,9 @@ the default.
   helps accessibility and shows when images are blocked), **Link** and
   **Remove**.
 - **Add a picture:** click in the text where it should go, then **+ Picture**
-  and **Insert** from the library. You can also drag a picture from the library
+  and **Insert** from the library. While a picture is selected, the library
+  offers **Add new** (puts another one right after it) and **Replace** (swaps
+  the selected one). Click in the text first to add one somewhere else. You can also drag a picture from the library
   into the email, or paste or drop one from your computer.
 - **Big photos are shrunk automatically** to a size that suits email
   (1200 px wide) when uploaded.
