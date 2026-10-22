@@ -1,5 +1,6 @@
 import { json } from '../../_lib/auth.js';
 import { normalizeTags, buildMetadata } from '../../_lib/tags.js';
+import { snapshot, deleteAllVersions } from '../../_lib/versions.js';
 
 const MAX_HTML_BYTES = 2 * 1024 * 1024;
 const MAX_NAME = 120;
@@ -12,7 +13,12 @@ export async function onRequestGet({ params, env }) {
   if (!raw) return json({ error: 'Not found' }, 404);
   const record = JSON.parse(raw);
   // Templates saved before tags existed simply have none.
-  return json({ ...record, tags: Array.isArray(record.tags) ? record.tags : [] });
+  return json({
+    ...record,
+    tags: Array.isArray(record.tags) ? record.tags : [],
+    master: !!record.master,
+    parent: record.parent || null,
+  });
 }
 
 // PUT /api/templates/:id { name, html, tags } -> update
@@ -35,17 +41,41 @@ export async function onRequestPut({ params, request, env }) {
     return json({ error: 'Template is too large (2 MB max).' }, 413);
   }
 
-  const updated = new Date().toISOString();
-  const record = { ...existing, name, tags, html, updated };
+  const wasMaster = !!existing.master;
+  const master = typeof body.master === 'boolean' ? body.master : wasMaster;
+  const contentChanged =
+    html !== existing.html ||
+    name !== existing.name ||
+    JSON.stringify(tags) !== JSON.stringify(normalizeTags(existing.tags));
+
+  // Master templates can't be changed by accident: the request must say so.
+  if (wasMaster && contentChanged && body.overwrite !== true) {
+    return json({ error: 'This is a master template. Save your changes as a draft instead.', master: true }, 409);
+  }
+  // A draft can't also be a master.
+  if (master && existing.parent) {
+    return json({ error: 'A draft can\'t be a master. Replace its master with it instead.' }, 400);
+  }
+
+  // Keep the old content so it can always be restored.
+  if (contentChanged) await snapshot(env, params.id, existing);
+
+  const updated = contentChanged ? new Date().toISOString() : existing.updated;
+  const record = { ...existing, name, tags, html, updated, master, parent: existing.parent || null };
   await env.TEMPLATES.put(`t:${params.id}`, JSON.stringify(record), {
-    metadata: buildMetadata(name, tags, updated),
+    metadata: buildMetadata(name, tags, updated, { master, parent: record.parent }),
   });
-  return json({ id: params.id, name, tags, updated });
+  return json({ id: params.id, name, tags, updated, master, parent: record.parent });
 }
 
 // DELETE /api/templates/:id
 export async function onRequestDelete({ params, env }) {
   if (!ID_RE.test(params.id)) return json({ error: 'Not found' }, 404);
+  const raw = await env.TEMPLATES.get(`t:${params.id}`);
+  if (raw && JSON.parse(raw).master) {
+    return json({ error: 'This is a master template. Unlock it before deleting.', master: true }, 409);
+  }
   await env.TEMPLATES.delete(`t:${params.id}`);
+  await deleteAllVersions(env, params.id);
   return json({ ok: true });
 }

@@ -7,6 +7,8 @@ A small, password-protected tool for building and storing HTML emails.
   No HTML knowledge needed.
 - **Edit the code**: switch to **Split** or **Code** to work with the HTML directly
 - **Templates**: save, rename, duplicate, delete, search, and organize with tags
+- **Masters, drafts and history**: lock the approved version of an email so nobody
+  can overwrite it by accident, work in drafts, and restore any earlier version
 - **Images**: upload once, get a permanent link (stored in Cloudflare R2)
 - **Copy / paste**: one-click "Copy HTML" and "Paste HTML" for the church email tool
 - **Checks**: warns about Gmail's ~100 KB clipping, non-https image links, missing alt text
@@ -48,6 +50,25 @@ different. The email itself looks and behaves the same.
 
 ---
 
+## Protecting your master templates
+
+- **Make master.** Open a finished email and click **🔒 Make master**. A yellow
+  banner appears and the **Save** button becomes **Save as draft**.
+- **Saving a master never changes it.** It creates a separate *draft* copy
+  ("Name – draft") that sits under the master in the left list. Edit that draft
+  as much as you like.
+- **Drafts.** Opening a draft shows a blue banner. **Save draft** only changes
+  that draft. **Open master** jumps back to the master.
+- **When a draft is ready:** click **Replace master with this draft...** (or, on
+  the master itself, **Update the master...**). Both ask you to confirm first.
+- **History.** Every time an email's content changes, the previous version is
+  kept (the latest 20 per email). Click **History**, pick a time, **Load**, then
+  Save. Loading never saves by itself. This also rescues a mistaken master update.
+- **Deleting a master** is blocked until you click **🔓 Unlock**. The block is
+  enforced by the server, not just the button.
+
+---
+
 ## How to update the site (no terminal needed)
 
 ### Change one file
@@ -83,6 +104,7 @@ public/editor.js           the click-to-edit visual editor
 functions/_middleware.js   locks /api/* behind the login
 functions/_lib/auth.js     password check + signed session cookie
 functions/_lib/tags.js     rules for template tags
+functions/_lib/versions.js saved earlier versions (history)
 functions/api/*            login, templates (KV), images (R2)
 functions/img/[key].js     public image links used inside emails
 wrangler.toml              project settings and storage connections

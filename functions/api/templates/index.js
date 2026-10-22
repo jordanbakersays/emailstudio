@@ -3,6 +3,7 @@ import { normalizeTags, buildMetadata } from '../../_lib/tags.js';
 
 const MAX_HTML_BYTES = 2 * 1024 * 1024; // 2 MB is far beyond any real email
 const MAX_NAME = 120;
+const ID_RE = /^[0-9a-f-]{36}$/;
 
 // GET  /api/templates  -> list (name, tags, dates only, no HTML)
 export async function onRequestGet({ env }) {
@@ -17,6 +18,8 @@ export async function onRequestGet({ env }) {
         name: m.name || 'Untitled',
         tags: Array.isArray(m.tags) ? m.tags : [],
         updated: m.updated || null,
+        master: !!m.master,
+        parent: m.parent || null,
       });
     }
     cursor = page.list_complete ? undefined : page.cursor;
@@ -41,11 +44,17 @@ export async function onRequestPost({ request, env }) {
     return json({ error: 'Template is too large (2 MB max).' }, 413);
   }
 
+  // A draft remembers which master template it came from.
+  let parent = null;
+  if (typeof body.parent === 'string' && ID_RE.test(body.parent) && (await env.TEMPLATES.get(`t:${body.parent}`))) {
+    parent = body.parent;
+  }
+
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
-  const record = { id, name, tags, html, created: now, updated: now };
+  const record = { id, name, tags, html, created: now, updated: now, master: false, parent };
   await env.TEMPLATES.put(`t:${id}`, JSON.stringify(record), {
-    metadata: buildMetadata(name, tags, now),
+    metadata: buildMetadata(name, tags, now, { master: false, parent }),
   });
-  return json({ id, name, tags, updated: now }, 201);
+  return json({ id, name, tags, updated: now, master: false, parent }, 201);
 }

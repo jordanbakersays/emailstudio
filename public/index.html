@@ -62,6 +62,27 @@
   .chip{background:var(--warn-bg);color:var(--warn);border-radius:20px;padding:1px 9px}
   .chip.ok{background:#dcfce7;color:#166534}
 
+  /* masters, drafts, history */
+  #banner{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 14px;border-bottom:1px solid var(--line);font-size:13px}
+  #banner.master{background:#fef3c7;color:#78350f}
+  #banner.draft{background:#e0f2fe;color:#0c4a6e}
+  #banner .msg{flex:1 1 260px}
+  #banner button{padding:3px 10px;font-size:12px}
+  #list li.draft{margin-left:16px;border-left:3px solid #bfdbfe;border-radius:0 7px 7px 0}
+  #list .badge{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-radius:4px;padding:0 5px;margin-right:6px;vertical-align:1px}
+  #list .badge.m{background:#fef3c7;color:#78350f}
+  #list .badge.d{background:#e0f2fe;color:#0c4a6e}
+  #list .t-sub{display:block;color:var(--muted);font-size:11px}
+  #hist{position:fixed;inset:0;background:rgba(20,22,26,.45);display:flex;align-items:center;justify-content:center;z-index:20;padding:16px}
+  #hist[hidden]{display:none}
+  #hist .box{background:var(--panel);border-radius:12px;max-width:520px;width:100%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+  #hist header{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line);font-weight:700}
+  #hist p{margin:0;padding:10px 16px 0;color:var(--muted);font-size:12px}
+  #histList{list-style:none;margin:0;padding:10px 16px 16px;overflow:auto;display:grid;gap:6px}
+  #histList li{display:flex;gap:10px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fff}
+  #histList .when{flex:1;min-width:0}
+  #histList .when small{display:block;color:var(--muted)}
+
   /* view modes */
   #modes{margin-left:auto;display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
   #modes button{border:0;border-radius:0;padding:4px 14px;font-size:13px;background:#fff}
@@ -127,6 +148,13 @@
 </section>
 
 <!-- APP -->
+<div id="hist" hidden role="dialog" aria-modal="true" aria-label="Version history">
+  <div class="box">
+    <header><span>Earlier versions</span><button id="histClose" class="ghost" aria-label="Close">✕</button></header>
+    <p>Every time this email is changed, the version before the change is kept (the latest 20). Loading one puts it in the editor. Nothing is saved until you save.</p>
+    <ul id="histList"></ul>
+  </div>
+</div>
 <div id="app" hidden>
   <aside id="side">
     <div class="brand">Email Studio</div>
@@ -144,10 +172,14 @@
       <button id="pasteBtn" title="Replace the editor with whatever is on your clipboard">Paste HTML</button>
       <button id="copyBtn" class="primary" title="Copy the HTML to paste into your church email tool">Copy HTML</button>
       <button id="saveBtn" title="Ctrl/Cmd + S">Save</button>
+      <button id="lockBtn" title="Protect this as the approved version" hidden>🔒 Make master</button>
+      <button id="histBtn" title="See and restore earlier versions" hidden>History</button>
       <button id="dupBtn">Duplicate</button>
       <button id="delBtn" class="danger">Delete</button>
       <button id="imgBtn">Images</button>
     </div>
+
+    <div id="banner" hidden></div>
 
     <div id="tagbar">
       <span class="lbl">Tags</span>
@@ -221,7 +253,7 @@
 `;
 
   let templates = [];
-  let cur = { id: null, name: 'Untitled email', html: STARTER, tags: [] };
+  let cur = { id: null, name: 'Untitled email', html: STARTER, tags: [], master: false, parent: null };
   let activeTag = null;                 // null = show all
   const UNTAGGED = '\u0001untagged';    // special filter value
   const MAX_TAGS = 5;
@@ -315,7 +347,8 @@
   }
 
   function loadIntoEditor(t) {
-    cur = { id: t.id || null, name: t.name || 'Untitled email', html: t.html ?? '', tags: [...(t.tags || [])] };
+    cur = { id: t.id || null, name: t.name || 'Untitled email', html: t.html ?? '', tags: [...(t.tags || [])],
+            master: !!t.master, parent: t.parent || null };
     $('#name').value = cur.name;
     $('#code').value = cur.html;
     setDirty(false);
@@ -323,6 +356,41 @@
     renderPreview();
     renderStatus();
     renderList();
+    updateChrome();
+  }
+
+  // Banner and buttons that depend on whether this is a master, a draft or a plain email.
+  function updateChrome() {
+    const b = $('#banner');
+    b.textContent = '';
+    b.hidden = true;
+    b.className = '';
+    const addBtn = (label, fn, cls) => {
+      const x = document.createElement('button');
+      x.textContent = label;
+      if (cls) x.className = cls;
+      x.addEventListener('click', fn);
+      b.appendChild(x);
+    };
+    const msg = (html) => { const m = document.createElement('span'); m.className = 'msg'; m.innerHTML = html; b.appendChild(m); };
+    if (cur.master) {
+      b.hidden = false; b.className = 'master';
+      msg('🔒 <b>Master template.</b> This is the approved version. <b>Save</b> makes a separate draft copy, so the master stays safe.');
+      addBtn('Update the master…', updateMaster, 'danger');
+    } else if (cur.parent) {
+      b.hidden = false; b.className = 'draft';
+      const p = templates.find((t) => t.id === cur.parent);
+      msg('📝 <b>Draft</b>' + (p ? ' of the master “<span id="bnParent"></span>”' : '') + '. Saving here only changes this draft.');
+      if (p) {
+        b.querySelector('#bnParent').textContent = p.name;
+        addBtn('Open master', () => openTemplate(cur.parent));
+        addBtn('Replace master with this draft…', replaceMaster, 'danger');
+      }
+    }
+    $('#saveBtn').textContent = cur.master ? 'Save as draft' : cur.parent ? 'Save draft' : 'Save';
+    $('#lockBtn').hidden = !cur.id || !!cur.parent;
+    $('#lockBtn').textContent = cur.master ? '🔓 Unlock' : '🔒 Make master';
+    $('#histBtn').hidden = !cur.id;
   }
 
   function onEdit() {
@@ -472,16 +540,40 @@
       ul.appendChild(li);
       return;
     }
+    // Drafts sit under their master (when the master is in the list); masters come first.
+    const shownIds = new Set(shown.map((t) => t.id));
+    const kids = {};
+    const top = [];
     for (const t of shown) {
+      if (t.parent && shownIds.has(t.parent)) (kids[t.parent] = kids[t.parent] || []).push(t);
+      else top.push(t);
+    }
+    top.sort((x, y) => (y.master ? 1 : 0) - (x.master ? 1 : 0));
+    const addRow = (t) => {
       const li = document.createElement('li');
-      if (t.id === cur.id) li.className = 'active';
+      li.className = (t.id === cur.id ? 'active ' : '') + (t.parent ? 'draft' : '');
       const n = document.createElement('span');
       n.className = 't-name';
-      n.textContent = t.name;
+      if (t.master || t.parent) {
+        const bd = document.createElement('span');
+        bd.className = 'badge ' + (t.master ? 'm' : 'd');
+        bd.textContent = t.master ? 'Master' : 'Draft';
+        n.appendChild(bd);
+      }
+      n.appendChild(document.createTextNode(t.name));
       const d = document.createElement('span');
       d.className = 't-date';
       d.textContent = fmtDate(t.updated);
       li.append(n, d);
+      if (t.parent && !shownIds.has(t.parent)) {
+        const p = templates.find((x) => x.id === t.parent);
+        if (p) {
+          const sub = document.createElement('span');
+          sub.className = 't-sub';
+          sub.textContent = 'Draft of ' + p.name;
+          li.appendChild(sub);
+        }
+      }
       if ((t.tags || []).length) {
         const tg = document.createElement('span');
         tg.className = 't-tags';
@@ -495,6 +587,10 @@
       }
       li.addEventListener('click', () => openTemplate(t.id));
       ul.appendChild(li);
+    };
+    for (const t of top) {
+      addRow(t);
+      for (const k of kids[t.id] || []) addRow(k);
     }
   }
 
@@ -599,7 +695,13 @@
   }
 
   /* ---------- actions ---------- */
+  function rowFrom(r) {
+    return { id: r.id, name: r.name, tags: r.tags, updated: r.updated, master: !!r.master, parent: r.parent || null };
+  }
+
   async function save() {
+    // Master templates are protected: Save always makes a separate draft.
+    if (cur.id && cur.master) return saveAsDraft();
     ve.flush();
     const name = $('#name').value.trim() || 'Untitled email';
     const html = $('#code').value;
@@ -608,20 +710,134 @@
       if (cur.id) {
         const r = await api('/api/templates/' + cur.id, jsonBody('PUT', { name, html, tags: cur.tags }));
         const row = templates.find((t) => t.id === cur.id);
-        if (row) { row.name = r.name; row.tags = r.tags; row.updated = r.updated; }
+        if (row) Object.assign(row, rowFrom(r));
       } else {
         const r = await api('/api/templates', jsonBody('POST', { name, html, tags: cur.tags }));
         cur.id = r.id;
-        templates.unshift({ id: r.id, name: r.name, tags: r.tags, updated: r.updated });
+        templates.unshift(rowFrom(r));
       }
       cur.name = name;
       $('#name').value = name;
       templates.sort((a, b) => (b.updated || '').localeCompare(a.updated || ''));
       setDirty(false);
       renderList();
-      toast('Saved');
+      updateChrome();
+      toast(cur.parent ? 'Draft saved' : 'Saved');
     } catch (e) { toast(e.message, true); }
     finally { $('#saveBtn').disabled = false; }
+  }
+
+  // Save the editor as a new draft under the current master. The master is untouched.
+  async function saveAsDraft() {
+    ve.flush();
+    const typed = $('#name').value.trim();
+    const name = !typed || typed === cur.name ? `${cur.name} – draft` : typed;
+    const masterId = cur.id;
+    const html = $('#code').value;
+    $('#saveBtn').disabled = true;
+    try {
+      const r = await api('/api/templates', jsonBody('POST', { name, html, tags: cur.tags, parent: masterId }));
+      templates.unshift(rowFrom(r));
+      cur = { id: r.id, name: r.name, html, tags: [...cur.tags], master: false, parent: r.parent };
+      $('#name').value = r.name;
+      templates.sort((a, b) => (b.updated || '').localeCompare(a.updated || ''));
+      setDirty(false);
+      renderList();
+      updateChrome();
+      toast('Saved as a draft. The master was not changed.');
+    } catch (e) { toast(e.message, true); }
+    finally { $('#saveBtn').disabled = false; }
+  }
+
+  async function updateMaster() {
+    if (!confirm(`Replace the MASTER "${cur.name}" with what is in the editor now?\n\nEveryone who opens this template will see the new version. The old version is kept in History, so it can be restored.`)) return;
+    ve.flush();
+    const name = $('#name').value.trim() || cur.name;
+    try {
+      const r = await api('/api/templates/' + cur.id, jsonBody('PUT', { name, html: $('#code').value, tags: cur.tags, overwrite: true }));
+      const row = templates.find((t) => t.id === cur.id);
+      if (row) Object.assign(row, rowFrom(r));
+      cur.name = name;
+      setDirty(false);
+      renderList();
+      updateChrome();
+      toast('Master updated. The previous version is in History.');
+    } catch (e) { toast(e.message, true); }
+  }
+
+  // Make a draft the new master content (the master's old content goes to History).
+  async function replaceMaster() {
+    const m = templates.find((t) => t.id === cur.parent);
+    if (!m) return toast('The master could not be found.', true);
+    if (!confirm(`Replace the MASTER "${m.name}" with this draft?\n\nThe master's current version is kept in History, so it can be restored.`)) return;
+    ve.flush();
+    try {
+      if (dirty) await save();
+      const r = await api('/api/templates/' + m.id, jsonBody('PUT', { html: $('#code').value, overwrite: true }));
+      Object.assign(m, rowFrom(r));
+      renderList();
+      toast(`Master "${m.name}" updated. Its previous version is in History.`);
+    } catch (e) { toast(e.message, true); }
+  }
+
+  async function toggleMaster() {
+    if (!cur.id) return;
+    const next = !cur.master;
+    if (!next && !confirm(`Unlock "${cur.name}"?\n\nOnce unlocked, anyone's Save will change it directly (earlier versions stay in History).`)) return;
+    try {
+      const r = await api('/api/templates/' + cur.id, jsonBody('PUT', { master: next }));
+      const row = templates.find((t) => t.id === cur.id);
+      if (row) Object.assign(row, rowFrom(r));
+      cur.master = next;
+      renderList();
+      updateChrome();
+      toast(next ? 'Locked as master. Save now creates drafts instead of changing it.' : 'Unlocked');
+    } catch (e) { toast(e.message, true); }
+  }
+
+  /* ---------- history ---------- */
+  async function openHistory() {
+    if (!cur.id) return;
+    const ul = $('#histList');
+    ul.textContent = '';
+    $('#hist').hidden = false;
+    try {
+      const { versions } = await api('/api/templates/versions/' + cur.id);
+      if (!versions.length) {
+        const li = document.createElement('li');
+        li.textContent = 'No earlier versions yet. They appear after the first change is saved.';
+        ul.appendChild(li);
+        return;
+      }
+      for (const v of versions) {
+        const li = document.createElement('li');
+        const w = document.createElement('span');
+        w.className = 'when';
+        w.textContent = v.saved ? new Date(v.saved).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'Earlier version';
+        const sm = document.createElement('small');
+        sm.textContent = `${v.name} · ${fmtSize(v.size)}`;
+        w.appendChild(sm);
+        const btn = document.createElement('button');
+        btn.textContent = 'Load';
+        btn.addEventListener('click', () => loadVersion(v.ts));
+        li.append(w, btn);
+        ul.appendChild(li);
+      }
+    } catch (e) { $('#hist').hidden = true; toast(e.message, true); }
+  }
+
+  async function loadVersion(ts) {
+    if (dirty && !confirm('Replace the unsaved changes in the editor with this earlier version?')) return;
+    try {
+      const v = await api('/api/templates/versions/' + cur.id + '?ts=' + encodeURIComponent(ts));
+      $('#code').value = v.html;
+      onEdit();
+      renderPreview();
+      $('#hist').hidden = true;
+      toast(cur.master
+        ? 'Earlier version loaded. Saving will make it a draft.'
+        : 'Earlier version loaded. Click Save to keep it.');
+    } catch (e) { toast(e.message, true); }
   }
 
   async function duplicate() {
@@ -629,18 +845,22 @@
     const name = ($('#name').value.trim() || 'Untitled email') + ' (copy)';
     try {
       const r = await api('/api/templates', jsonBody('POST', { name, html: $('#code').value, tags: cur.tags }));
-      templates.unshift({ id: r.id, name: r.name, tags: r.tags, updated: r.updated });
+      templates.unshift(rowFrom(r));
       cur.id = r.id;
       cur.name = r.name;
+      cur.master = false;
+      cur.parent = null;
       $('#name').value = r.name;
       setDirty(false);
       renderList();
+      updateChrome();
       toast('Duplicated');
     } catch (e) { toast(e.message, true); }
   }
 
   async function remove() {
     if (!cur.id) { if (confirmDiscard()) newEmail(true); return; }
+    if (cur.master) return toast('This is a master template. Click Unlock first if you really want to delete it.', true);
     if (!confirm(`Delete "${cur.name}"? This can't be undone.`)) return;
     try {
       await api('/api/templates/' + cur.id, { method: 'DELETE' });
@@ -956,6 +1176,10 @@
   $('#delBtn').addEventListener('click', remove);
   $('#copyBtn').addEventListener('click', copyHtml);
   $('#pasteBtn').addEventListener('click', pasteHtml);
+  $('#lockBtn').addEventListener('click', toggleMaster);
+  $('#histBtn').addEventListener('click', openHistory);
+  $('#histClose').addEventListener('click', () => { $('#hist').hidden = true; });
+  $('#hist').addEventListener('click', (e) => { if (e.target === $('#hist')) $('#hist').hidden = true; });
   $('#imgBtn').addEventListener('click', () => toggleDrawer());
   $('#closeImg').addEventListener('click', () => toggleDrawer(false));
 

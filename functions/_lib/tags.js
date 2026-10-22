@@ -28,12 +28,16 @@ export function normalizeTags(input) {
 // KV list metadata is limited to 1 KB. Real tags never come close, but this
 // guarantees a save can never fail because of it.
 const enc = new TextEncoder();
-export function buildMetadata(name, tags, updated) {
+// extra: { master: boolean, parent: string|null } - short flags the sidebar needs.
+export function buildMetadata(name, tags, updated, extra = {}) {
   const keep = [...tags];
-  let meta = { name, tags: keep, updated };
+  const flags = {};
+  if (extra.master) flags.master = true;
+  if (extra.parent) flags.parent = extra.parent;
+  let meta = { name, tags: keep, updated, ...flags };
   while (keep.length && enc.encode(JSON.stringify(meta)).length > 1000) {
     keep.pop();
-    meta = { name, tags: keep, updated };
+    meta = { name, tags: keep, updated, ...flags };
   }
   return meta;
 }
