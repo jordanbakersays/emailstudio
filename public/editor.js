@@ -89,6 +89,19 @@
     }
   }
 
+  // Choices offered in the formatting bar. Fonts are the ones nearly every email app has.
+  const SIZES = [12, 14, 16, 18, 20, 24, 28, 32, 40];
+  const FONTS = [
+    ['Arial', 'Arial, Helvetica, sans-serif'],
+    ['Georgia', 'Georgia, serif'],
+    ['Verdana', 'Verdana, Geneva, sans-serif'],
+    ['Tahoma', 'Tahoma, Geneva, sans-serif'],
+    ['Times New Roman', "'Times New Roman', Times, serif"],
+    ['Courier New', "'Courier New', monospace"],
+  ];
+  const TEXT_COLORS = ['#000000', '#444444', '#888888', '#ffffff', '#c0392b', '#e67e22', '#d4a017', '#2e8b57', '#1a5fb4', '#7b3fa0'];
+  const HILITES = ['#fff3a3', '#c8f2d4', '#cfe3ff', '#ffd6e0', '#e5e5e5'];
+
   /* ------------------------------------------------------------------ */
   /* Small helpers                                                       */
   /* ------------------------------------------------------------------ */
@@ -184,6 +197,18 @@
       #fmt .ve-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px 12px}
       #fmt .ve-row button{padding:3px 9px;font-size:12px}
       #fmt .ve-row button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+      #fmt .ve-row select{font:inherit;font-size:12px;padding:3px 4px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--ink);max-width:110px}
+      #fmt .ve-pw{position:relative;display:inline-block}
+      #fmt .ve-pop{position:absolute;top:calc(100% + 4px);left:0;z-index:15;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px;box-shadow:0 8px 28px rgba(0,0,0,.22);display:grid;gap:6px;width:176px}
+      #fmt .ve-pop[hidden]{display:none}
+      #fmt .ve-sw{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
+      #fmt .ve-sw button{width:28px;height:28px;padding:0;border-radius:6px;border:1px solid rgba(0,0,0,.25)}
+      #fmt .ve-pop .ve-more{display:flex;gap:6px;align-items:center;font-size:12px}
+      #fmt .ve-pop .ve-more input{width:34px;height:26px;padding:0;border:1px solid var(--line);border-radius:6px;background:#fff}
+      #fmt .ve-pop button.ve-def{font-size:12px;padding:3px 8px}
+      #fmt .ve-note{font-size:11px;color:var(--muted);line-height:1.3}
+      #fmt .ve-colbar{display:inline-block;width:12px;height:3px;margin-left:3px;vertical-align:middle;border-radius:2px}
+      #fmt .ve-grp{display:inline-flex;gap:6px;align-items:center;flex-wrap:nowrap}
       #fmt .ve-sep{width:1px;height:18px;background:var(--line)}
       #fmt .ve-img{background:#e6f2f0;border-top:1px solid #bfe0db;border-bottom:1px solid #bfe0db}
       #fmt .ve-alt{flex:1 1 200px;padding:3px 8px;font-size:12px}
@@ -230,18 +255,47 @@
     /* ---------- toolbar ---------- */
     bar.innerHTML = `
       <div class="ve-row">
-        <button type="button" data-cmd="bold" title="Bold (Ctrl+B)"><b>B</b></button>
-        <button type="button" data-cmd="italic" title="Italic (Ctrl+I)"><i>I</i></button>
-        <button type="button" data-cmd="underline" title="Underline (Ctrl+U)"><u>U</u></button>
+        <span class="ve-grp">
+          <select data-sel="font" title="Font" aria-label="Font"></select>
+          <select data-sel="size" title="Text size" aria-label="Text size"></select>
+        </span>
         <span class="ve-sep"></span>
-        <button type="button" data-act="link" title="Turn the selected words into a link">Link</button>
-        <button type="button" data-cmd="insertUnorderedList" title="Bulleted list">&bull; List</button>
-        <button type="button" data-cmd="removeFormat" title="Remove bold, italics, etc. from the selected words">Clear</button>
+        <span class="ve-grp">
+          <button type="button" data-cmd="bold" title="Bold (Ctrl+B)"><b>B</b></button>
+          <button type="button" data-cmd="italic" title="Italic (Ctrl+I)"><i>I</i></button>
+          <button type="button" data-cmd="underline" title="Underline (Ctrl+U)"><u>U</u></button>
+          <button type="button" data-cmd="strikeThrough" title="Strikethrough"><s>S</s></button>
+          <span class="ve-pw" data-pop="color">
+            <button type="button" data-act="popToggle" title="Text color">A<span class="ve-colbar" style="background:#c0392b"></span></button>
+            <div class="ve-pop" hidden></div>
+          </span>
+          <span class="ve-pw" data-pop="hilite">
+            <button type="button" data-act="popToggle" title="Highlight color"><span style="background:#fff3a3;padding:0 3px">ab</span></button>
+            <div class="ve-pop" hidden></div>
+          </span>
+        </span>
         <span class="ve-sep"></span>
-        <button type="button" data-act="undo" title="Undo (Ctrl+Z)">&#8630;</button>
-        <button type="button" data-act="redo" title="Redo (Ctrl+Y)">&#8631;</button>
+        <span class="ve-grp">
+          <button type="button" data-act="align" data-v="left" title="Align left" aria-label="Align left"><svg width="16" height="14" viewBox="0 0 16 14" aria-hidden="true"><path d="M2 3h12M2 7h8M2 11h12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
+          <button type="button" data-act="align" data-v="center" title="Center" aria-label="Center"><svg width="16" height="14" viewBox="0 0 16 14" aria-hidden="true"><path d="M2 3h12M4 7h8M2 11h12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
+          <button type="button" data-act="align" data-v="right" title="Align right" aria-label="Align right"><svg width="16" height="14" viewBox="0 0 16 14" aria-hidden="true"><path d="M2 3h12M6 7h8M2 11h12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
+        </span>
         <span class="ve-sep"></span>
-        <button type="button" data-act="addImage" title="Add a picture where your cursor is">+ Picture</button>
+        <span class="ve-grp">
+          <button type="button" data-act="link" title="Turn the selected words into a link">Link</button>
+          <button type="button" data-cmd="insertUnorderedList" title="Bulleted list">&bull; List</button>
+          <button type="button" data-cmd="insertOrderedList" title="Numbered list">1. List</button>
+          <button type="button" data-cmd="removeFormat" title="Remove bold, italics, etc. from the selected words">Clear</button>
+        </span>
+        <span class="ve-sep"></span>
+        <span class="ve-grp">
+          <button type="button" data-act="undo" title="Undo (Ctrl+Z)">&#8630;</button>
+          <button type="button" data-act="redo" title="Redo (Ctrl+Y)">&#8631;</button>
+        </span>
+        <span class="ve-sep"></span>
+        <span class="ve-grp">
+          <button type="button" data-act="addImage" title="Add a picture where your cursor is">+ Picture</button>
+        </span>
       </div>
       <div class="ve-row ve-img" hidden>
         <strong>Picture</strong>
@@ -253,6 +307,54 @@
         <button type="button" data-act="imgRemove" class="ve-danger">Remove</button>
       </div>
       <div class="ve-hint">Click any text to edit it. Click a picture to change it.</div>`;
+    // Fill the dropdowns and color boxes.
+    const fontSel = bar.querySelector('[data-sel=font]');
+    const sizeSel = bar.querySelector('[data-sel=size]');
+    const addOpt = (sel, value, label) => {
+      const o = document.createElement('option');
+      o.value = value;
+      o.textContent = label;
+      sel.appendChild(o);
+    };
+    addOpt(fontSel, '', 'Font');
+    addOpt(fontSel, '__default', 'Email default');
+    FONTS.forEach(([n, v]) => addOpt(fontSel, v, n));
+    addOpt(sizeSel, '', 'Size');
+    addOpt(sizeSel, '__default', 'Email default');
+    SIZES.forEach((n) => addOpt(sizeSel, n + 'px', n + ' px'));
+    for (const [kind, colors, none] of [['color', TEXT_COLORS, 'Email default color'], ['hilite', HILITES, 'No highlight']]) {
+      const pop = bar.querySelector(`[data-pop=${kind}] .ve-pop`);
+      const sw = document.createElement('div');
+      sw.className = 've-sw';
+      for (const c of colors) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.dataset.act = 'swatch';
+        b.dataset.kind = kind;
+        b.dataset.v = c;
+        b.style.background = c;
+        b.title = c;
+        b.setAttribute('aria-label', 'Color ' + c);
+        sw.appendChild(b);
+      }
+      const def = document.createElement('button');
+      def.type = 'button';
+      def.className = 've-def';
+      def.dataset.act = 'swatch';
+      def.dataset.kind = kind;
+      def.dataset.v = '';
+      def.textContent = none;
+      const more = document.createElement('label');
+      more.className = 've-more';
+      more.innerHTML = '<input type="color" value="#1a5fb4" data-kind="' + kind + '"> Other color';
+      pop.append(sw, def, more);
+      if (kind === 'color') {
+        const n = document.createElement('div');
+        n.className = 've-note';
+        n.textContent = 'Custom colors do not change in dark mode, so avoid very dark or very light ones for important text.';
+        pop.appendChild(n);
+      }
+    }
     const ui = {
       imgRow: bar.querySelector('.ve-img'),
       alt: bar.querySelector('.ve-alt'),
@@ -366,7 +468,161 @@
         try { on = doc.queryCommandState(b.dataset.cmd); } catch (e) { /* ignore */ }
         b.classList.toggle('on', !!on && b.dataset.cmd !== 'removeFormat');
       }
+      let al = '';
+      try {
+        const t = alignTargets()[0];
+        if (t) {
+          al = doc.defaultView.getComputedStyle(t).textAlign;
+          if (al === 'start' || al === '-webkit-left') al = 'left';
+          if (al === 'end' || al === '-webkit-right') al = 'right';
+          if (al === '-webkit-center') al = 'center';
+        }
+      } catch (e) { /* ignore */ }
+      for (const b of bar.querySelectorAll('[data-act=align]')) b.classList.toggle('on', b.dataset.v === al);
     }
+
+    /* ---------- alignment, size, font and color ---------- */
+    // The pieces of the email the current selection touches: each paragraph or
+    // heading, or each bullet of a list.
+    function alignTargets() {
+      if (!doc) return [];
+      const sel = doc.getSelection();
+      if (!sel || !sel.rangeCount) return [];
+      const r = sel.getRangeAt(0);
+      const hosts = sel.isCollapsed
+        ? [selectionHost()].filter(Boolean)
+        : [...doc.querySelectorAll('[data-es-edit]')].filter((h) => r.intersectsNode(h));
+      const out = [];
+      for (const h of hosts) {
+        if (h.tagName === 'UL' || h.tagName === 'OL') {
+          const items = [...h.children].filter((li) => li.tagName === 'LI' && (sel.isCollapsed ? li.contains(sel.anchorNode) : r.intersectsNode(li)));
+          out.push(...items);
+        } else {
+          out.push(h);
+        }
+      }
+      return out;
+    }
+
+    function setAlign(v) {
+      if (!ensureSelection()) return opts.toast('Click in the text you want to change first.', true);
+      const targets = alignTargets();
+      if (!targets.length) return;
+      for (const t of targets) {
+        t.style.textAlign = v;
+        if (t.hasAttribute('align')) t.setAttribute('align', v);
+        // Loose text has no paragraph of its own; give it one so the alignment sticks.
+        if (t.hasAttribute('data-es-loose')) t.style.display = 'block';
+      }
+      scheduleChange();
+      updateState();
+    }
+
+    // Apply (or, with '', remove) inline styles such as font-size on the selected words.
+    // With nothing selected it applies to the whole paragraph the cursor is in.
+    function applyInline(props) {
+      if (!ensureSelection()) return opts.toast('Click in the text you want to change first.', true);
+      const sel = doc.getSelection();
+      if (sel.isCollapsed) {
+        let target = selectionHost();
+        if (target && (target.tagName === 'UL' || target.tagName === 'OL')) {
+          target = closestEl(sel.anchorNode, 'li') || target;
+        }
+        const r = doc.createRange();
+        r.selectNodeContents(target);
+        sel.removeAllRanges();
+        sel.addRange(r);
+      }
+      const before = new Set(doc.querySelectorAll('font[size="7"]'));
+      doc.execCommand('styleWithCSS', false, false);
+      doc.execCommand('fontSize', false, '7');
+      const fonts = [...doc.querySelectorAll('font[size="7"]')].filter((f) => !before.has(f));
+      const spans = [];
+      let partial = false;
+      for (const f of fonts) {
+        const span = doc.createElement('span');
+        while (f.firstChild) span.appendChild(f.firstChild);
+        // Anything inside that already sets the same thing would override the new choice.
+        span.querySelectorAll('[style]').forEach((e) => {
+          for (const k of Object.keys(props)) e.style[k] = '';
+          if (!e.getAttribute('style')) e.removeAttribute('style');
+        });
+        for (const [k, v] of Object.entries(props)) if (v) span.style[k] = v;
+        f.replaceWith(span);
+        spans.push(span);
+        // An outer span that sets the same thing: when the selection fills it, change it
+        // too; when it only partly fills it, a removal can't be done without splitting it.
+        for (let a = span.parentElement; a && !a.hasAttribute('data-es-edit') && a !== doc.body; a = a.parentElement) {
+          if (a.tagName !== 'SPAN' || !a.getAttribute('style')) continue;
+          const keys = Object.keys(props).filter((k) => a.style[k]);
+          if (!keys.length) continue;
+          if (a.textContent === span.textContent) {
+            keys.forEach((k) => { a.style[k] = ''; });
+            if (!a.getAttribute('style')) a.removeAttribute('style');
+          } else if (!Object.values(props).some((v) => v)) {
+            partial = true;
+          }
+        }
+      }
+      // Tidy: a span that ended up with no styling is just removed.
+      const tidy = (sp) => {
+        if (sp.isConnected && !sp.getAttribute('style') && !sp.attributes.length) sp.replaceWith(...sp.childNodes);
+      };
+      spans.forEach((sp) => { if (!sp.getAttribute('style')) sp.removeAttribute('style'); tidy(sp); });
+      doc.querySelectorAll('span[style=""]').forEach((e) => { e.removeAttribute('style'); tidy(e); });
+      doc.querySelectorAll('span:not([style])').forEach((e) => { if (!e.attributes.length) e.replaceWith(...e.childNodes); });
+      if (partial) opts.toast('That text is part of a longer formatted phrase. Select the whole phrase to remove its formatting.', true);
+      const live = spans.filter((x) => x.isConnected);
+      if (live.length) {
+        const r = doc.createRange();
+        r.setStartBefore(live[0]);
+        r.setEndAfter(live[live.length - 1]);
+        sel.removeAllRanges();
+        sel.addRange(r);
+      }
+      rememberRange();
+      scheduleChange();
+      updateState();
+    }
+    const SIZE_PROPS = (v) => ({ fontSize: v, lineHeight: v ? '1.3' : '' });
+
+    // When the whole editing area is already a list, bullets <-> numbers just swaps the list type.
+    function switchList(tag) {
+      const host = selectionHost();
+      if (!host || (host.tagName !== 'UL' && host.tagName !== 'OL')) return false;
+      if (host.tagName === tag) {
+        opts.toast(tag === 'OL' ? 'This is already a numbered list.' : 'This is already a bulleted list.');
+        return true;
+      }
+      const n = doc.createElement(tag);
+      for (const a of [...host.attributes]) {
+        if (a.name !== 'contenteditable' && a.name !== 'data-es-edit') n.setAttribute(a.name, a.value);
+      }
+      while (host.firstChild) n.appendChild(host.firstChild);
+      host.replaceWith(n);
+      setEditable(n);
+      const li = n.querySelector('li');
+      if (li) {
+        const r = doc.createRange();
+        r.selectNodeContents(li);
+        r.collapse(false);
+        const sel = doc.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(r);
+        n.focus();
+        rememberRange();
+      }
+      scheduleChange();
+      updateState();
+      return true;
+    }
+
+    function closePops() {
+      bar.querySelectorAll('.ve-pop').forEach((p) => { p.hidden = true; });
+    }
+    document.addEventListener('mousedown', (e) => {
+      if (!e.target.closest || !e.target.closest('.ve-pw')) closePops();
+    });
 
     /* ---------- change tracking ---------- */
     function scheduleChange() {
@@ -380,7 +636,16 @@
     function serialize() {
       const clone = doc.documentElement.cloneNode(true);
       clone.querySelectorAll('[data-es-edit]').forEach((e) => e.removeAttribute('contenteditable'));
-      clone.querySelectorAll('[data-es-loose]').forEach((s) => s.replaceWith(...s.childNodes));
+      clone.querySelectorAll('[data-es-loose]').forEach((s) => {
+        if (/text-align/i.test(s.getAttribute('style') || '')) {
+          const div = doc.createElement('div');
+          div.setAttribute('style', s.getAttribute('style'));
+          div.append(...s.childNodes);
+          s.replaceWith(div);
+        } else {
+          s.replaceWith(...s.childNodes);
+        }
+      });
       ['data-es-edit', 'data-es-sel', 'data-es-drop', 'data-es-new'].forEach((a) =>
         clone.querySelectorAll('[' + a + ']').forEach((e) => e.removeAttribute(a)));
       clone.querySelectorAll('style[data-es-style]').forEach((e) => e.remove());
@@ -529,6 +794,7 @@
           opts.toast('Click in the text you want to change first.', true);
           return;
         }
+        if ((b.dataset.cmd === 'insertUnorderedList' || b.dataset.cmd === 'insertOrderedList') && switchList(b.dataset.cmd === 'insertOrderedList' ? 'OL' : 'UL')) return;
         doc.execCommand(b.dataset.cmd, false, null);
         scheduleChange();
         updateState();
@@ -539,6 +805,31 @@
         case 'link':
           openTextLink();
           break;
+        case 'align':
+          setAlign(b.dataset.v);
+          break;
+        case 'popToggle': {
+          const pop = b.parentElement.querySelector('.ve-pop');
+          const open = pop.hidden;
+          closePops();
+          pop.hidden = !open;
+          if (open) {
+            pop.style.left = '0';
+            pop.style.right = 'auto';
+            if (pop.getBoundingClientRect().right > window.innerWidth - 8) { pop.style.left = 'auto'; pop.style.right = '0'; }
+          }
+          break;
+        }
+        case 'swatch': {
+          closePops();
+          const v = b.dataset.v;
+          applyInline(b.dataset.kind === 'color' ? { color: v } : { backgroundColor: v });
+          if (b.dataset.kind === 'color') {
+            const bar2 = bar.querySelector('[data-pop=color] .ve-colbar');
+            if (bar2 && v) bar2.style.background = v;
+          }
+          break;
+        }
         case 'undo':
           if (iframe.contentWindow) iframe.contentWindow.focus();
           doc.execCommand('undo');
@@ -579,6 +870,22 @@
           break;
         }
         default:
+      }
+    });
+
+    bar.addEventListener('change', (e) => {
+      const t = e.target;
+      if (!doc) return;
+      if (t.matches('select[data-sel]')) {
+        const v = t.value === '__default' ? '' : t.value;
+        const was = t.value;
+        t.selectedIndex = 0;
+        if (!was) return;
+        if (t.dataset.sel === 'size') applyInline(SIZE_PROPS(v));
+        else applyInline({ fontFamily: v });
+      } else if (t.matches('input[type=color]')) {
+        closePops();
+        applyInline(t.dataset.kind === 'color' ? { color: t.value } : { backgroundColor: t.value });
       }
     });
 
