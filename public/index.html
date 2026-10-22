@@ -61,6 +61,14 @@
   .chip{background:var(--warn-bg);color:var(--warn);border-radius:20px;padding:1px 9px}
   .chip.ok{background:#dcfce7;color:#166534}
 
+  /* view modes */
+  #modes{margin-left:auto;display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  #modes button{border:0;border-radius:0;padding:4px 14px;font-size:13px;background:#fff}
+  #modes button.on{background:var(--accent);color:#fff}
+  #panes.mode-visual,#panes.mode-code{grid-template-columns:1fr}
+  #panes.mode-visual #code,#panes.mode-code #previewWrap{display:none}
+  #panes.mode-code #code{border-right:0}
+
   /* tags */
   #tagbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:8px 14px;border-bottom:1px solid var(--line);background:var(--panel)}
   #tagbar .lbl{color:var(--muted);font-size:12px;margin-right:2px}
@@ -98,6 +106,7 @@
     #app{grid-template-columns:1fr;grid-template-rows:auto 1fr}
     #side{border-right:0;border-bottom:1px solid var(--line);max-height:34vh}
     #panes{grid-template-columns:1fr;grid-template-rows:1fr 1fr}
+    #panes.mode-visual,#panes.mode-code{grid-template-rows:1fr}
     #code{border-right:0;border-bottom:1px solid var(--line)}
     #drawer{position:fixed;inset:0 0 0 auto;width:min(340px,100%);z-index:5;box-shadow:-4px 0 18px rgba(0,0,0,.18)}
   }
@@ -144,9 +153,14 @@
       <span id="tagChips" style="display:contents"></span>
       <input id="tagInput" type="text" list="tagList" placeholder="Add a tag, press Enter" maxlength="30" aria-label="Add a tag">
       <datalist id="tagList"></datalist>
+      <div id="modes" role="group" aria-label="How to edit">
+        <button type="button" data-mode="visual" title="Click and type right in the email">Visual</button>
+        <button type="button" data-mode="split" title="Visual editor and HTML code side by side">Split</button>
+        <button type="button" data-mode="code" title="HTML code only">Code</button>
+      </div>
     </div>
 
-    <div id="panes">
+    <div id="panes" class="mode-visual">
       <textarea id="code" spellcheck="false" aria-label="HTML"></textarea>
       <div id="previewWrap">
         <div class="pv-bar">
@@ -154,7 +168,8 @@
           <button data-w="100%" class="on">Desktop</button>
           <button data-w="375px">Phone</button>
         </div>
-        <div class="pv-stage"><iframe id="preview" sandbox title="Email preview"></iframe></div>
+        <div id="fmt"></div>
+        <div class="pv-stage"><iframe id="preview" sandbox="allow-same-origin" title="Email preview"></iframe></div>
       </div>
     </div>
 
@@ -172,6 +187,7 @@
 
 <div id="toast" role="status"></div>
 
+<script src="/editor.js"></script>
 <script>
 (() => {
   const $ = (s) => document.querySelector(s);
@@ -207,6 +223,9 @@
   let activeTag = null;                 // null = show all
   const UNTAGGED = '\u0001untagged';    // special filter value
   const MAX_TAGS = 5;
+  let mode = 'visual';                  // 'visual' | 'split' | 'code'
+  let focusZone = 'preview';            // where the cursor last was (matters in split view)
+  let draggedImage = null;              // library picture being dragged into the preview
   let dirty = false;
   let previewTimer = null;
 
@@ -310,7 +329,7 @@
   }
 
   function renderPreview() {
-    $('#preview').srcdoc = $('#code').value;
+    ve.render($('#code').value);
   }
 
   /* ---------- checks ---------- */
@@ -498,6 +517,7 @@
 
   /* ---------- actions ---------- */
   async function save() {
+    ve.flush();
     const name = $('#name').value.trim() || 'Untitled email';
     const html = $('#code').value;
     $('#saveBtn').disabled = true;
@@ -522,6 +542,7 @@
   }
 
   async function duplicate() {
+    ve.flush();
     const name = ($('#name').value.trim() || 'Untitled email') + ' (copy)';
     try {
       const r = await api('/api/templates', jsonBody('POST', { name, html: $('#code').value, tags: cur.tags }));
@@ -554,6 +575,7 @@
   }
 
   async function copyHtml() {
+    ve.flush();
     await copyText($('#code').value);
     toast('HTML copied');
   }
@@ -595,11 +617,19 @@
     for (const im of images) {
       const card = document.createElement('div');
       card.className = 'card';
+      // Drag a picture from here into the preview to add it (or onto another picture to replace it).
+      card.draggable = true;
+      card.addEventListener('dragstart', (e) => {
+        draggedImage = im;
+        e.dataTransfer.effectAllowed = 'copy';
+        e.dataTransfer.setData('text/plain', im.url);
+      });
+      card.addEventListener('dragend', () => { draggedImage = null; });
 
       const thumb = document.createElement('div');
       thumb.className = 'thumb';
       const img = document.createElement('img');
-      img.src = im.url; img.alt = ''; img.loading = 'lazy';
+      img.src = im.url; img.alt = ''; img.loading = 'lazy'; img.draggable = false;
       thumb.appendChild(img);
 
       const meta = document.createElement('div');
@@ -617,8 +647,11 @@
       bCopy.textContent = 'Copy URL';
       bCopy.onclick = async () => { await copyText(im.url); toast('Image URL copied'); };
       const bIns = document.createElement('button');
-      bIns.textContent = 'Insert';
-      bIns.title = 'Insert an <img> tag at the cursor';
+      const replacing = mode !== 'code' && ve.hasSelectedImage();
+      bIns.textContent = replacing ? 'Use' : 'Insert';
+      bIns.title = replacing
+        ? 'Replace the selected picture in the email with this one'
+        : 'Put this picture where your cursor is';
       bIns.onclick = () => insertImage(im);
       const bDel = document.createElement('button');
       bDel.textContent = 'Delete';
@@ -631,7 +664,20 @@
     }
   }
 
+  // Put a library picture into the email. In the visual editor it goes where the
+  // cursor is (or replaces the selected picture); in the code view it becomes an <img> tag.
   function insertImage(im) {
+    const visual = mode === 'visual' || (mode === 'split' && focusZone === 'preview');
+    if (!visual) return insertImageIntoCode(im);
+    const replacing = ve.hasSelectedImage();
+    if (ve.insertImage(im)) {
+      toast(replacing ? 'Picture replaced' : 'Picture added. Describe it in the Alt text box above.');
+    } else {
+      toast('Click where you want the picture in the email first, then choose it again.', true);
+    }
+  }
+
+  function insertImageIntoCode(im) {
     const el = $('#code');
     const tag = `<img src="${im.url}" alt="" width="600" style="display:block;width:100%;max-width:600px;height:auto;border:0;">`;
     const pos = el.selectionEnd ?? el.value.length;
@@ -654,7 +700,8 @@
     const files = [...fileList].filter((f) => f.type.startsWith('image/'));
     if (!files.length) return toast('Choose PNG, JPG, GIF or WebP images', true);
     const fd = new FormData();
-    files.forEach((f) => fd.append('file', f));
+    const prepared = await Promise.all(files.map(prepareImage));
+    prepared.forEach((f) => fd.append('file', f));
     $('#drop').textContent = `Uploading ${files.length} file${files.length > 1 ? 's' : ''}…`;
     try {
       const res = await fetch('/api/images', { method: 'POST', body: fd, credentials: 'same-origin' });
@@ -675,6 +722,70 @@
     }
   }
 
+  // Big phone photos are shrunk to email size (max 1200 px wide) before uploading,
+  // so emails stay light and uploads stay fast. GIFs are left alone (animation).
+  async function prepareImage(file) {
+    if (file.type === 'image/gif') return file;
+    const MAX_W = 1200;
+    let bmp;
+    try { bmp = await createImageBitmap(file); } catch { return file; }
+    try {
+      if (bmp.width <= MAX_W && file.size <= 1.5 * 1024 * 1024) return file;
+      const scale = Math.min(1, MAX_W / bmp.width);
+      const w = Math.max(1, Math.round(bmp.width * scale));
+      const h = Math.max(1, Math.round(bmp.height * scale));
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const ctx = c.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(bmp, 0, 0, w, h);
+      // Keep transparency only when the picture actually has some.
+      let type = 'image/jpeg';
+      if (file.type !== 'image/jpeg') {
+        const px = ctx.getImageData(0, 0, w, h).data;
+        for (let i = 3; i < px.length; i += 4) { if (px[i] < 250) { type = 'image/png'; break; } }
+      }
+      if (type === 'image/jpeg') {
+        // JPEG has no transparency: repaint on white.
+        const flat = document.createElement('canvas');
+        flat.width = w; flat.height = h;
+        const fctx = flat.getContext('2d');
+        fctx.fillStyle = '#fff';
+        fctx.fillRect(0, 0, w, h);
+        fctx.drawImage(c, 0, 0);
+        c.width = 0;
+        var out = flat;
+      } else {
+        out = c;
+      }
+      const blob = await new Promise((res) => out.toBlob(res, type, 0.85));
+      if (!blob || (scale === 1 && blob.size >= file.size)) return file;
+      const base = file.name.replace(/\.[^.]+$/, '') || 'image';
+      return new File([blob], base + (type === 'image/png' ? '.png' : '.jpg'), { type });
+    } catch {
+      return file;
+    } finally {
+      if (bmp.close) bmp.close();
+    }
+  }
+
+  // Upload one picture (from paste, drop, or the "Upload new" button) and hand back its record.
+  async function uploadOne(file) {
+    if (!file.type.startsWith('image/')) throw new Error('Please choose a PNG, JPG, GIF or WebP picture.');
+    toast('Uploading picture…');
+    const prepared = await prepareImage(file);
+    const fd = new FormData();
+    fd.append('file', prepared);
+    const res = await fetch('/api/images', { method: 'POST', body: fd, credentials: 'same-origin' });
+    if (res.status === 401) { showLogin(); throw new Error('Please sign in again.'); }
+    const data = await res.json().catch(() => ({}));
+    if (data.rejected && data.rejected.length) throw new Error(`${data.rejected[0].name}: ${data.rejected[0].reason}`);
+    if (!res.ok || !data.uploaded || !data.uploaded.length) throw new Error(data.error || 'Upload failed');
+    const rec = data.uploaded[0];
+    images.unshift(rec);
+    if (!$('#drawer').hidden) renderImages();
+    return rec;
+  }
+
   function toggleDrawer(show) {
     const d = $('#drawer');
     const open = show ?? d.hidden;
@@ -682,7 +793,46 @@
     if (open) loadImages();
   }
 
+  /* ---------- visual editor ---------- */
+  const ve = EmailVisualEditor({
+    iframe: $('#preview'),
+    toolbar: $('#fmt'),
+    onDirty: () => setDirty(true),
+    onChange: (html) => {
+      // Edits made in the preview are written back into the code.
+      $('#code').value = html;
+      cur.html = html;
+      setDirty(true);
+      renderStatus();
+    },
+    onSave: () => save(),
+    toast,
+    uploadFile: uploadOne,
+    getDraggedImage: () => draggedImage,
+    openLibrary: () => toggleDrawer(true),
+    onImageSelect: () => { if (!$('#drawer').hidden) renderImages(); },
+    onFocus: () => { focusZone = 'preview'; },
+  });
+
+  function setMode(m) {
+    mode = m;
+    $('#panes').className = 'mode-' + m;
+    document.querySelectorAll('#modes button').forEach((b) => b.classList.toggle('on', b.dataset.mode === m));
+    if (m === 'visual') focusZone = 'preview';
+    if (m === 'code') focusZone = 'code';
+    try { localStorage.setItem('es-mode', m); } catch {}
+    if (!$('#drawer').hidden) renderImages();
+  }
+
   /* ---------- wiring ---------- */
+  document.querySelectorAll('#modes button').forEach((b) =>
+    b.addEventListener('click', () => { ve.flush(); setMode(b.dataset.mode); }));
+  $('#code').addEventListener('focus', () => { focusZone = 'code'; });
+  try {
+    const saved = localStorage.getItem('es-mode');
+    if (saved === 'visual' || saved === 'split' || saved === 'code') mode = saved;
+  } catch {}
+  setMode(mode);
   $('#code').addEventListener('input', onEdit);
   $('#code').addEventListener('keydown', (e) => {
     if (e.key === 'Tab' && !e.shiftKey) {
