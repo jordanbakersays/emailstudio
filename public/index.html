@@ -61,6 +61,19 @@
   .chip{background:var(--warn-bg);color:var(--warn);border-radius:20px;padding:1px 9px}
   .chip.ok{background:#dcfce7;color:#166534}
 
+  /* tags */
+  #tagbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:8px 14px;border-bottom:1px solid var(--line);background:var(--panel)}
+  #tagbar .lbl{color:var(--muted);font-size:12px;margin-right:2px}
+  .tag{display:inline-flex;align-items:center;gap:4px;background:#e6f2f0;color:#0b5d56;border:1px solid #bfe0db;border-radius:20px;padding:1px 9px;font-size:12px}
+  .tag button{border:0;background:transparent;padding:0 0 0 2px;font-size:14px;line-height:1;color:inherit;cursor:pointer}
+  .tag button:hover{background:transparent;color:var(--danger)}
+  #tagInput{width:200px;padding:4px 9px;font-size:13px}
+  #filters{display:flex;flex-wrap:wrap;gap:5px}
+  #filters button{padding:2px 9px;font-size:12px;border-radius:20px}
+  #filters button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  #list .t-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+  #list .t-tags .tag{font-size:11px;padding:0 7px}
+
   /* image drawer */
   #drawer{width:340px;background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
   #drawer header{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line);font-weight:700}
@@ -109,6 +122,7 @@
     <div class="brand">Email Studio</div>
     <button id="newBtn" class="primary">+ New email</button>
     <input id="filter" type="text" placeholder="Search templates">
+    <div id="filters"></div>
     <ul id="list"></ul>
     <button id="logoutBtn" class="ghost">Log out</button>
   </aside>
@@ -123,6 +137,13 @@
       <button id="dupBtn">Duplicate</button>
       <button id="delBtn" class="danger">Delete</button>
       <button id="imgBtn">Images</button>
+    </div>
+
+    <div id="tagbar">
+      <span class="lbl">Tags</span>
+      <span id="tagChips" style="display:contents"></span>
+      <input id="tagInput" type="text" list="tagList" placeholder="Add a tag, press Enter" maxlength="30" aria-label="Add a tag">
+      <datalist id="tagList"></datalist>
     </div>
 
     <div id="panes">
@@ -182,7 +203,10 @@
 `;
 
   let templates = [];
-  let cur = { id: null, name: 'Untitled email', html: STARTER };
+  let cur = { id: null, name: 'Untitled email', html: STARTER, tags: [] };
+  let activeTag = null;                 // null = show all
+  const UNTAGGED = '\u0001untagged';    // special filter value
+  const MAX_TAGS = 5;
   let dirty = false;
   let previewTimer = null;
 
@@ -267,10 +291,11 @@
   }
 
   function loadIntoEditor(t) {
-    cur = { id: t.id || null, name: t.name || 'Untitled email', html: t.html ?? '' };
+    cur = { id: t.id || null, name: t.name || 'Untitled email', html: t.html ?? '', tags: [...(t.tags || [])] };
     $('#name').value = cur.name;
     $('#code').value = cur.html;
     setDirty(false);
+    renderTags();
     renderPreview();
     renderStatus();
     renderList();
@@ -331,7 +356,13 @@
     const q = $('#filter').value.trim().toLowerCase();
     const ul = $('#list');
     ul.textContent = '';
-    const shown = templates.filter((t) => t.name.toLowerCase().includes(q));
+    renderFilters();
+    const shown = templates.filter((t) => {
+      const tags = t.tags || [];
+      if (activeTag === UNTAGGED && tags.length) return false;
+      if (activeTag && activeTag !== UNTAGGED && !tags.includes(activeTag)) return false;
+      return !q || t.name.toLowerCase().includes(q) || tags.some((g) => g.toLowerCase().includes(q));
+    });
     if (!shown.length) {
       const li = document.createElement('li');
       li.className = 'empty';
@@ -349,9 +380,102 @@
       d.className = 't-date';
       d.textContent = fmtDate(t.updated);
       li.append(n, d);
+      if ((t.tags || []).length) {
+        const tg = document.createElement('span');
+        tg.className = 't-tags';
+        for (const g of t.tags) {
+          const c = document.createElement('span');
+          c.className = 'tag';
+          c.textContent = g;
+          tg.appendChild(c);
+        }
+        li.appendChild(tg);
+      }
       li.addEventListener('click', () => openTemplate(t.id));
       ul.appendChild(li);
     }
+  }
+
+  /* ---------- tags ---------- */
+  // Every tag in use anywhere, one spelling per tag (ignoring upper/lower case).
+  function allTags() {
+    const map = new Map();
+    for (const t of templates) {
+      for (const g of t.tags || []) if (!map.has(g.toLowerCase())) map.set(g.toLowerCase(), g);
+    }
+    for (const g of cur.tags) if (!map.has(g.toLowerCase())) map.set(g.toLowerCase(), g);
+    return [...map.values()].sort((a, b) => a.localeCompare(b));
+  }
+
+  // Sidebar filter buttons: All / each tag with a count / Untagged.
+  function renderFilters() {
+    const box = $('#filters');
+    box.textContent = '';
+    const counts = new Map();
+    let untagged = 0;
+    for (const t of templates) {
+      const tags = t.tags || [];
+      if (!tags.length) untagged++;
+      for (const g of tags) counts.set(g, (counts.get(g) || 0) + 1);
+    }
+    if (activeTag === UNTAGGED && !untagged) activeTag = null;
+    if (activeTag && activeTag !== UNTAGGED && !counts.has(activeTag)) activeTag = null;
+    if (!counts.size) return; // nothing is tagged yet, so no filter row
+
+    const mk = (label, value) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      if (activeTag === value) b.className = 'on';
+      b.onclick = () => { activeTag = value; renderList(); };
+      box.appendChild(b);
+    };
+    mk(`All (${templates.length})`, null);
+    for (const g of [...counts.keys()].sort((a, b) => a.localeCompare(b))) mk(`${g} (${counts.get(g)})`, g);
+    if (untagged) mk(`Untagged (${untagged})`, UNTAGGED);
+  }
+
+  // Tag chips for the email currently open in the editor.
+  function renderTags() {
+    const box = $('#tagChips');
+    box.textContent = '';
+    for (const g of cur.tags) {
+      const chip = document.createElement('span');
+      chip.className = 'tag';
+      chip.appendChild(document.createTextNode(g));
+      const x = document.createElement('button');
+      x.type = 'button';
+      x.textContent = '×';
+      x.title = 'Remove tag';
+      x.setAttribute('aria-label', 'Remove tag ' + g);
+      x.onclick = () => {
+        cur.tags = cur.tags.filter((t) => t !== g);
+        setDirty(true);
+        renderTags();
+      };
+      chip.appendChild(x);
+      box.appendChild(chip);
+    }
+    const dl = $('#tagList');
+    dl.textContent = '';
+    for (const g of allTags().filter((g) => !cur.tags.includes(g))) {
+      const o = document.createElement('option');
+      o.value = g;
+      dl.appendChild(o);
+    }
+    const full = cur.tags.length >= MAX_TAGS;
+    $('#tagInput').disabled = full;
+    $('#tagInput').placeholder = full ? 'Limit of 5 tags reached' : 'Add a tag, press Enter';
+  }
+
+  function addTag(raw) {
+    let t = String(raw).replace(/\s+/g, ' ').trim().slice(0, 30).trim();
+    if (!t || cur.tags.length >= MAX_TAGS) return;
+    const existing = allTags().find((g) => g.toLowerCase() === t.toLowerCase());
+    if (existing) t = existing; // reuse the spelling already in use
+    if (cur.tags.some((g) => g.toLowerCase() === t.toLowerCase())) return;
+    cur.tags.push(t);
+    setDirty(true);
+    renderTags();
   }
 
   async function loadTemplates() {
@@ -379,13 +503,13 @@
     $('#saveBtn').disabled = true;
     try {
       if (cur.id) {
-        const r = await api('/api/templates/' + cur.id, jsonBody('PUT', { name, html }));
+        const r = await api('/api/templates/' + cur.id, jsonBody('PUT', { name, html, tags: cur.tags }));
         const row = templates.find((t) => t.id === cur.id);
-        if (row) { row.name = r.name; row.updated = r.updated; }
+        if (row) { row.name = r.name; row.tags = r.tags; row.updated = r.updated; }
       } else {
-        const r = await api('/api/templates', jsonBody('POST', { name, html }));
+        const r = await api('/api/templates', jsonBody('POST', { name, html, tags: cur.tags }));
         cur.id = r.id;
-        templates.unshift({ id: r.id, name: r.name, updated: r.updated });
+        templates.unshift({ id: r.id, name: r.name, tags: r.tags, updated: r.updated });
       }
       cur.name = name;
       $('#name').value = name;
@@ -400,8 +524,8 @@
   async function duplicate() {
     const name = ($('#name').value.trim() || 'Untitled email') + ' (copy)';
     try {
-      const r = await api('/api/templates', jsonBody('POST', { name, html: $('#code').value }));
-      templates.unshift({ id: r.id, name: r.name, updated: r.updated });
+      const r = await api('/api/templates', jsonBody('POST', { name, html: $('#code').value, tags: cur.tags }));
+      templates.unshift({ id: r.id, name: r.name, tags: r.tags, updated: r.updated });
       cur.id = r.id;
       cur.name = r.name;
       $('#name').value = r.name;
@@ -424,7 +548,9 @@
 
   function newEmail(skipConfirm) {
     if (!skipConfirm && !confirmDiscard()) return;
-    loadIntoEditor({ id: null, name: 'Untitled email', html: STARTER });
+    // If you're viewing one tag's emails, a new email starts with that tag.
+    const tags = activeTag && activeTag !== UNTAGGED ? [activeTag] : [];
+    loadIntoEditor({ id: null, name: 'Untitled email', html: STARTER, tags });
   }
 
   async function copyHtml() {
@@ -568,6 +694,22 @@
   });
   $('#name').addEventListener('input', () => setDirty(true));
   $('#filter').addEventListener('input', renderList);
+  $('#tagInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addTag(e.target.value);
+      e.target.value = '';
+      e.target.focus();
+    } else if (e.key === 'Backspace' && !e.target.value && cur.tags.length) {
+      cur.tags.pop();
+      setDirty(true);
+      renderTags();
+    }
+  });
+  // Picking a suggestion from the dropdown (or clicking away) also adds it.
+  $('#tagInput').addEventListener('change', (e) => {
+    if (e.target.value.trim()) { addTag(e.target.value); e.target.value = ''; }
+  });
   $('#newBtn').addEventListener('click', () => newEmail(false));
   $('#saveBtn').addEventListener('click', save);
   $('#dupBtn').addEventListener('click', duplicate);
