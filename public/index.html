@@ -55,6 +55,7 @@
   .pv-bar{display:flex;gap:6px;align-items:center;padding:8px 12px;color:var(--muted);font-size:12px}
   .pv-bar button{padding:3px 9px;font-size:12px}
   .pv-bar button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  #pvNote{margin-left:6px;color:var(--warn);font-size:12px}
   .pv-stage{flex:1;overflow:auto;display:flex;justify-content:center;padding:0 12px 12px}
   #preview{border:0;background:#fff;width:100%;height:100%;min-height:300px;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.12)}
   #status{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:7px 14px;border-top:1px solid var(--line);background:var(--panel);font-size:12px;color:var(--muted)}
@@ -167,6 +168,7 @@
           <span>Preview</span>
           <button data-w="100%" class="on">Desktop</button>
           <button data-w="375px">Phone</button>
+          <span id="pvNote"></span>
         </div>
         <div id="fmt"></div>
         <div class="pv-stage"><iframe id="preview" sandbox="allow-same-origin" title="Email preview"></iframe></div>
@@ -226,6 +228,9 @@
   let mode = 'visual';                  // 'visual' | 'split' | 'code'
   let focusZone = 'preview';            // where the cursor last was (matters in split view)
   let draggedImage = null;              // library picture being dragged into the preview
+  const PHONE_W = 375;                  // width of the phone preview
+  let previewDevice = 'desktop';        // 'desktop' | 'phone'
+  let phoneNatural = 0;                 // > 0 when the email is wider than a phone screen
   let dirty = false;
   let previewTimer = null;
 
@@ -328,6 +333,39 @@
     renderStatus();
   }
 
+  // Size the preview for Desktop or Phone. Emails that aren't built for phones (for
+  // example a fixed 600px layout) are shrunk to fit the screen, which is what phone
+  // mail apps do, instead of being cropped with sideways scrolling.
+  function fitPreview() {
+    const f = $('#preview');
+    const stage = f.parentElement;
+    phoneNatural = 0;
+    f.style.zoom = '';
+    f.style.height = '';
+    f.style.flexShrink = '';
+    if (!stage || !stage.clientWidth) return;       // hidden (Code view); redone when shown
+    if (previewDevice !== 'phone') {
+      f.style.width = '100%';
+    } else {
+      const vw = Math.max(200, Math.min(PHONE_W, stage.clientWidth - 24));
+      f.style.width = vw + 'px';
+      const d = f.contentDocument;
+      const natural = d && d.documentElement
+        ? Math.max(d.documentElement.scrollWidth, d.body ? d.body.scrollWidth : 0)
+        : 0;
+      if (natural > vw + 2) {
+        const scale = vw / natural;
+        f.style.flexShrink = '0';
+        f.style.width = natural + 'px';
+        f.style.height = Math.max(300, Math.round((stage.clientHeight - 12) / scale)) + 'px';
+        f.style.zoom = String(scale);
+        phoneNatural = natural;
+      }
+    }
+    $('#pvNote').textContent = phoneNatural ? `Shrunk to fit (email is ${phoneNatural}px wide)` : '';
+    renderStatus();
+  }
+
   function renderPreview() {
     ve.render($('#code').value);
   }
@@ -351,6 +389,9 @@
 
   function renderStatus() {
     const { bytes, issues } = check($('#code').value);
+    if (previewDevice === 'phone' && phoneNatural) {
+      issues.push(`Not mobile-friendly: ${phoneNatural}px wide, so phones will shrink it`);
+    }
     const s = $('#status');
     s.textContent = '';
     const size = document.createElement('span');
@@ -790,6 +831,7 @@
     const d = $('#drawer');
     const open = show ?? d.hidden;
     d.hidden = !open;
+    fitPreview();
     if (open) loadImages();
   }
 
@@ -822,12 +864,16 @@
     if (m === 'code') focusZone = 'code';
     try { localStorage.setItem('es-mode', m); } catch {}
     if (!$('#drawer').hidden) renderImages();
+    fitPreview();
   }
 
   /* ---------- wiring ---------- */
   document.querySelectorAll('#modes button').forEach((b) =>
     b.addEventListener('click', () => { ve.flush(); setMode(b.dataset.mode); }));
   $('#code').addEventListener('focus', () => { focusZone = 'code'; });
+  $('#preview').addEventListener('load', fitPreview);
+  let resizeTimer;
+  window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(fitPreview, 150); });
   try {
     const saved = localStorage.getItem('es-mode');
     if (saved === 'visual' || saved === 'split' || saved === 'code') mode = saved;
@@ -881,7 +927,8 @@
     b.addEventListener('click', () => {
       document.querySelectorAll('.pv-bar button').forEach((x) => x.classList.remove('on'));
       b.classList.add('on');
-      $('#preview').style.width = b.dataset.w;
+      previewDevice = b.dataset.w === '375px' ? 'phone' : 'desktop';
+      fitPreview();
     }));
 
   window.addEventListener('keydown', (e) => {
