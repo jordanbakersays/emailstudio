@@ -139,7 +139,8 @@
     const map = new Map();
     for (const el of [doc.body, ...doc.body.querySelectorAll('*')]) {
       const cs = win.getComputedStyle(el);
-      map.set(el, { color: parseComputed(cs.color), bg: parseComputed(cs.backgroundColor) });
+      const fill = parseComputed(cs.webkitTextFillColor);
+      map.set(el, { color: fill && fill.a > 0 ? fill : parseComputed(cs.color), bg: parseComputed(cs.backgroundColor) });
     }
     return map;
   }
@@ -165,10 +166,21 @@
     return !!(m && /dark/i.test(m.getAttribute('content') || ''));
   };
 
+  // A background picture hides what color is really behind the text, so we leave those alone.
+  function overPicture(el, win) {
+    for (let n = el; n; n = n.parentElement) {
+      if (n.hasAttribute && n.hasAttribute('background')) return true;
+      const bi = win.getComputedStyle(n).backgroundImage;
+      if (bi && bi !== 'none') return true;
+    }
+    return false;
+  }
+
   // Find what is wrong. Needs both light and dark snapshots.
   function findProblems(doc, win, light, dark, canvasDark) {
     const bright = [];
     const unreadable = [];
+    const lightBad = [];
     for (const el of [doc.body, ...doc.body.querySelectorAll('*')]) {
       if (SKIP.has(el.tagName)) continue;
       const a = light.get(el), b = dark.get(el);
@@ -177,12 +189,16 @@
         // a bright cell that only frames a picture is fine (the picture is what you see)
         if (el.textContent.trim()) bright.push(el);
       }
+      if (hasOwnText(el) && el.getClientRects().length && a.color && !overPicture(el, win)) {
+        // text that can't be read even in plain light mode (white text pasted from a dark app, say)
+        if (contrast(a.color.rgb, effectiveBg(el, light, [255, 255, 255])) < MIN_CONTRAST) { lightBad.push(el); continue; }
+      }
       if (hasOwnText(el) && el.getClientRects().length && b.color) {
         const bg = effectiveBg(el, dark, canvasDark);
         if (contrast(b.color.rgb, bg) < MIN_CONTRAST) unreadable.push(el);
       }
     }
-    return { bright, unreadable };
+    return { bright, unreadable, lightBad };
   }
 
   /* ---------- analyze ---------- */
@@ -200,8 +216,9 @@
       return {
         bright: p.bright.length,
         unreadable: p.unreadable.length,
+        lightBad: p.lightBad.length,
         needsMeta,
-        total: p.bright.length + p.unreadable.length + (needsMeta ? 1 : 0),
+        total: p.bright.length + p.unreadable.length + p.lightBad.length + (needsMeta ? 1 : 0),
       };
     });
   }
@@ -286,10 +303,24 @@
         return { rules, light, dark, canvasDark };
       };
 
-      // Step 1: light blocks that stay light.
+      // Step 0: text that is unreadable even in light mode (stuck white or near-white text, for
+      // example from pasting out of a dark app). Give it a readable color for its background.
       let m = measure();
       let p = findProblems(doc, win, m.light, m.dark, m.canvasDark);
       let changed = 0;
+      for (const el of p.lightBad) {
+        const bg = effectiveBg(el, m.light, [255, 255, 255]);
+        el.style.removeProperty('-webkit-text-fill-color');
+        el.removeAttribute('color');
+        el.style.color = lum(bg) > 0.4 ? '#222222' : '#ffffff';
+        for (const cls of [...el.classList]) if (/^dmt-/.test(cls)) el.classList.remove(cls);
+        changed++;
+      }
+      if (p.lightBad.length) { dropStaleClasses(doc, win); injectStyle(doc, buildCss(state)); }
+
+      // Step 1: light blocks that stay light.
+      m = measure();
+      p = findProblems(doc, win, m.light, m.dark, m.canvasDark);
       for (const el of p.bright) {
         const c = m.light.get(el).bg.rgb;
         const h = hex(c);

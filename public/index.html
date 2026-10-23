@@ -701,6 +701,7 @@
     if (d && d.total) {
       const parts = [];
       if (d.bright) parts.push(`${d.bright} light block${d.bright > 1 ? 's' : ''}`);
+      if (d.lightBad) parts.push(`${d.lightBad} text you can't read (white on light)`);
       if (d.unreadable) parts.push(`${d.unreadable} hard-to-read text`);
       if (d.needsMeta) parts.push('missing dark-mode tag');
       const c = document.createElement('span');
@@ -710,7 +711,7 @@
       const b = document.createElement('button');
       b.className = 'chip';
       b.style.cssText = 'border:0;cursor:pointer';
-      b.title = 'Adds dark-mode colors for the spots that stay bright or become unreadable';
+      b.title = 'Fixes unreadable text and adds dark-mode colors for the spots that stay bright or become unreadable';
       b.textContent = 'Fix for dark mode';
       b.addEventListener('click', fixDark);
       s.appendChild(b);

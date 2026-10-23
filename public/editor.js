@@ -1726,8 +1726,21 @@
     // fonts or sizes: the email's own styling (including dark mode) has to stay in charge.
     // 'before' is the set of elements that existed before the paste.
     const BLOCKY = new Set(['DIV', 'P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'BLOCKQUOTE', 'PRE', 'SECTION', 'ARTICLE', 'HEADER', 'FOOTER']);
+    const HOST_ATTRS = ['style', 'color', 'bgcolor', 'face', 'size'];
+    function snapshot(host) {
+      const set = new Set(host.querySelectorAll('*'));
+      set.hostAttrs = HOST_ATTRS.map((a) => [a, host.getAttribute(a)]);
+      return set;
+    }
     function sanitizeInserted(host, before) {
       if (!host || !host.isConnected) return;
+      // Some browsers (iOS Safari especially) put the pasted text's color on the paragraph itself
+      // instead of on a new element. Put the paragraph's own look back exactly as it was.
+      if (before.hostAttrs) {
+        for (const [a, v] of before.hostAttrs) {
+          if (host.getAttribute(a) !== v) { if (v === null) host.removeAttribute(a); else host.setAttribute(a, v); }
+        }
+      }
       const added = [...host.querySelectorAll('*')].filter((el) => !before.has(el));
       for (const el of added) {
         if (!el.isConnected) continue;
@@ -1775,7 +1788,7 @@
       const html = dt.getData('text/html');
       const text = dt.getData('text/plain');
       const inList = host.tagName === 'UL' || host.tagName === 'OL';
-      const before = new Set(host.querySelectorAll('*'));
+      const before = snapshot(host);
       if (inList) {
         doc.execCommand('insertText', false, text.replace(/\s*\r?\n+\s*/g, ' ').trim());
       } else if (html) {
@@ -1793,7 +1806,7 @@
     function onBeforeInput(e) {
       if (!/^insertFrom(Paste|Drop|Yank|PasteAsQuotation)$/.test(e.inputType || '')) return;
       const host = closestEl(e.target, '[data-es-edit]');
-      if (host) sanitizeNext = { host, before: new Set(host.querySelectorAll('*')) };
+      if (host) sanitizeNext = { host, before: snapshot(host) };
     }
     function onInputSanitize() {
       if (!sanitizeNext) return;
