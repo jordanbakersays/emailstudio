@@ -727,11 +727,37 @@
       return doctype + '\n' + clone.outerHTML + '\n';
     }
 
+    // 'lastOut' is what the code box last got from (or gave to) the preview. Comparing against it
+    // lets us notice edits that arrived without the browser announcing them (some phones insert
+    // pasted text silently), so the code never silently falls behind what is on screen.
+    let lastOut = null;
+    let loaded = false;
     function flush() {
       clearTimeout(timer);
-      if (!pending || !doc) return;
+      if (!doc || !loaded) return;
+      const html = serialize();
+      if (!pending && html === lastOut) return;
       pending = false;
-      opts.onChange(serialize());
+      lastOut = html;
+      opts.onChange(html);
+    }
+
+    // Watch the page itself, so any change to the words is noticed however it got there.
+    let watcher = null;
+    let watchTimer = null;
+    function watch() {
+      if (watcher) watcher.disconnect();
+      if (typeof MutationObserver === 'undefined') return;
+      const real = (m) => m.type !== 'attributes' || !/^(data-es-|contenteditable)/.test(m.attributeName || '');
+      watcher = new MutationObserver((muts) => {
+        if (!loaded || !muts.some(real)) return;
+        clearTimeout(watchTimer);
+        watchTimer = setTimeout(() => {
+          if (!loaded || !doc) return;
+          if (serialize() !== lastOut) scheduleChange();
+        }, 200);
+      });
+      watcher.observe(doc.body, { subtree: true, childList: true, characterData: true, attributes: true });
     }
 
     /* ---------- pictures ---------- */
@@ -1897,12 +1923,14 @@
       undoTxt = null;
       curBtn = null;
       undoBtn = null;
-      showButton(null);
-      showText(null);
-      showBlock(null);
-      darkRules = null;
-      applyScheme();
-      ui.imgRow.hidden = true;
+      try {
+        showButton(null);
+        showText(null);
+        showBlock(null);
+        darkRules = null;
+        applyScheme();
+        ui.imgRow.hidden = true;
+      } catch (e) { /* never let a toolbar problem stop editing from working */ }
 
       const st = doc.createElement('style');
       st.setAttribute('data-es-style', '');
@@ -1912,7 +1940,10 @@
       markEditable(doc.body);
       try { doc.execCommand('styleWithCSS', false, false); } catch (e) { /* ignore */ }
       bind(doc);
-      updateState();
+      try { updateState(); } catch (e) { /* ignore */ }
+      loaded = true;
+      lastOut = serialize();
+      watch();
     }
 
     iframe.addEventListener('load', init);
@@ -1922,7 +1953,9 @@
       // Show this HTML in the preview and make it editable.
       render(html) {
         clearTimeout(timer);
+        clearTimeout(watchTimer);
         pending = false;
+        loaded = false;
         const m = String(html).match(/^\s*(<!doctype[^>]*>)/i);
         doctype = m ? m[1] : '<!doctype html>';
         iframe.srcdoc = html;

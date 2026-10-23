@@ -119,13 +119,15 @@
   }
 
   /* ---------- reading the email's dark mode ---------- */
+  // Rules we have switched on/off before no longer say "dark" in their condition text, so remember them.
+  const toggled = new WeakSet();
   function darkRules(doc) {
     const out = [];
     const walk = (rules) => {
       for (const r of rules) {
         if (r.type === 4) { // media rule
           const cond = (r.conditionText || (r.media && r.media.mediaText) || '');
-          if (/prefers-color-scheme\s*:\s*dark/i.test(cond)) out.push(r);
+          if (toggled.has(r) || /prefers-color-scheme\s*:\s*dark/i.test(cond)) out.push(r);
           else walk(r.cssRules);
         }
       }
@@ -133,7 +135,7 @@
     for (const sh of doc.styleSheets) { try { walk(sh.cssRules); } catch (e) { /* cross-origin sheet */ } }
     return out;
   }
-  const setScheme = (rules, dark) => rules.forEach((r) => { r.media.mediaText = dark ? 'all' : 'not all'; });
+  const setScheme = (rules, dark) => rules.forEach((r) => { toggled.add(r); r.media.mediaText = dark ? 'all' : 'not all'; });
 
   function snapshot(doc, win) {
     const map = new Map();
