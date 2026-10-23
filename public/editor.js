@@ -298,6 +298,7 @@
         <span class="ve-sep"></span>
         <span class="ve-grp">
           <button type="button" data-act="addImage" title="Add a picture where your cursor is">+ Picture</button>
+          <button type="button" data-act="blocks" title="Add a saved section right below the section you picked">+ Block</button>
         </span>
       </div>
       <div class="ve-row ve-img" hidden>
@@ -315,6 +316,7 @@
         <button type="button" data-act="blkUp" title="Move this section up">&uarr; Up</button>
         <button type="button" data-act="blkDown" title="Move this section down">&darr; Down</button>
         <button type="button" data-act="blkDup" title="Make a copy right below">Duplicate</button>
+        <button type="button" data-act="blkSave" title="Save this section so you can reuse it in any email">Save block</button>
         <button type="button" data-act="blkDel" class="ve-danger" title="Remove this whole section">Delete</button>
         <button type="button" data-act="blkUndo" hidden>Undo</button>
       </div>
@@ -644,9 +646,8 @@
       timer = setTimeout(flush, 250);
     }
 
-    // Turn the edited preview back into clean email HTML.
-    function serialize() {
-      const clone = doc.documentElement.cloneNode(true);
+    // Remove everything the editor added (editing marks, loose-text wrappers, outlines).
+    function cleanClone(clone) {
       clone.querySelectorAll('[data-es-edit]').forEach((e) => e.removeAttribute('contenteditable'));
       clone.querySelectorAll('[data-es-loose]').forEach((s) => {
         if (/text-align/i.test(s.getAttribute('style') || '')) {
@@ -662,6 +663,12 @@
         clone.querySelectorAll('[' + a + ']').forEach((e) => e.removeAttribute(a)));
       clone.querySelectorAll('style[data-es-style]').forEach((e) => e.remove());
       clone.querySelectorAll('[style=""]').forEach((e) => e.removeAttribute('style'));
+      return clone;
+    }
+
+    // Turn the edited preview back into clean email HTML.
+    function serialize() {
+      const clone = cleanClone(doc.documentElement.cloneNode(true));
       return doctype + '\n' + clone.outerHTML + '\n';
     }
 
@@ -824,6 +831,43 @@
       });
     }
 
+    /* ---------- light / dark preview ---------- */
+    // Shows the email the way an app that follows the system's dark mode would, by
+    // switching the email's own dark-mode styles on or off (not the computer's setting).
+    function darkRuleList() {
+      const out = [];
+      const walk = (rules) => {
+        for (const r of rules) {
+          if (r.type !== 4) continue;
+          const cond = r.conditionText || (r.media && r.media.mediaText) || '';
+          if (/prefers-color-scheme\s*:\s*dark/i.test(cond)) out.push(r);
+          else walk(r.cssRules);
+        }
+      };
+      if (doc) for (const sh of doc.styleSheets) { try { walk(sh.cssRules); } catch (e) { /* ignore */ } }
+      return out;
+    }
+    // Found once per loaded email: after a rule is switched off it no longer reads as a dark-mode rule.
+    let darkRules = null;
+    const getDarkRules = () => darkRules || (darkRules = darkRuleList());
+    function applyScheme() {
+      if (!doc) return;
+      const dark = scheme === 'dark';
+      getDarkRules().forEach((r) => { r.media.mediaText = dark ? 'all' : 'not all'; });
+      let st = doc.querySelector('style[data-es-scheme]');
+      if (!st) {
+        st = doc.createElement('style');
+        st.setAttribute('data-es-style', '');
+        st.setAttribute('data-es-scheme', '');
+        doc.head.appendChild(st);
+      }
+      // Emails that say they support dark mode also get a dark page behind them, as in Apple Mail.
+      const meta = doc.querySelector('meta[name="color-scheme" i]');
+      const declares = (meta && /dark/i.test(meta.getAttribute('content') || '')) ||
+        /dark/i.test(doc.defaultView.getComputedStyle(doc.documentElement).colorScheme || '');
+      st.textContent = 'html{color-scheme:' + (dark && declares ? 'dark' : 'light') + '}';
+    }
+
     /* ---------- sections (whole blocks) ---------- */
     // A section is a table or div that sits in a stack of two or more of them
     // (like the Elder Spotlight in the newsletter). A plain comment right above
@@ -833,6 +877,7 @@
     const blkUndo = bar.querySelector('[data-act=blkUndo]');
     let curBlock = null;
     let undoOp = null;
+    let scheme = 'light';
 
     const isBox = (n) => n && n.nodeType === 1 && (n.tagName === 'TABLE' || n.tagName === 'DIV');
     function blockOf(node) {
@@ -881,7 +926,7 @@
       if (curBlock) curBlock.setAttribute('data-es-block', '');
       blkRow.hidden = !curBlock && !undoOp;
       blkName.textContent = curBlock ? nameOf(curBlock) : '';
-      bar.querySelectorAll('[data-act=blkUp],[data-act=blkDown],[data-act=blkDup],[data-act=blkDel]').forEach((b) => { b.hidden = !curBlock; });
+      bar.querySelectorAll('[data-act=blkUp],[data-act=blkDown],[data-act=blkDup],[data-act=blkSave],[data-act=blkDel]').forEach((b) => { b.hidden = !curBlock; });
       if (curBlock) {
         bar.querySelector('[data-act=blkUp]').disabled = !siblingBlock(curBlock, -1);
         bar.querySelector('[data-act=blkDown]').disabled = !siblingBlock(curBlock, 1);
@@ -947,6 +992,116 @@
       scheduleChange();
     }
 
+    /* ---------- saved blocks ---------- */
+    async function saveCurrentBlock() {
+      const el = curBlock;
+      if (!el) return;
+      const name = (prompt('Name for this saved block:', nameOf(el)) || '').trim();
+      if (!name) return;
+      const wrap = doc.createElement('div');
+      unitOf(el).forEach((n) => wrap.appendChild(n.cloneNode(true)));
+      cleanClone(wrap);
+      const preview = wrap.textContent.replace(/\s+/g, ' ').trim().slice(0, 90);
+      try {
+        await opts.saveBlock({ name, html: wrap.innerHTML, preview });
+        opts.toast('Saved “' + name + '”. Add it to any email with + Block.');
+      } catch (err) {
+        opts.toast(err.message, true);
+      }
+    }
+
+    function insertBlockHtml(html) {
+      const target = curBlock;
+      if (!target || !target.isConnected) return false;
+      const t = doc.createElement('template');
+      t.innerHTML = html;
+      t.content.querySelectorAll('script').forEach((s) => s.remove());
+      const nodes = [...t.content.childNodes];
+      if (!nodes.length) return false;
+      const ref = target.nextSibling;
+      nodes.forEach((n) => target.parentNode.insertBefore(n, ref));
+      nodes.forEach((n) => { if (n.nodeType === 1) markEditable(n); });
+      const added = [...nodes].reverse().find(isBox) || null;
+      undoOp = null;
+      showBlock(added);
+      if (added) added.scrollIntoView({ block: 'nearest' });
+      scheduleChange();
+      return true;
+    }
+
+    async function openBlocks() {
+      if (!curBlock) {
+        opts.toast('Click inside the section you want it under first. The saved block goes right below that section.', true);
+        return;
+      }
+      const dlg = document.createElement('div');
+      dlg.className = 've-dlg';
+      const box = document.createElement('div');
+      box.className = 've-dlg-box';
+      const title = document.createElement('label');
+      title.textContent = 'Saved blocks';
+      const note = document.createElement('div');
+      note.className = 've-note';
+      note.textContent = 'Insert puts the block right below “' + nameOf(curBlock) + '”. To save a new one, click a section and choose Save block.';
+      const list = document.createElement('div');
+      list.style.cssText = 'display:grid;gap:8px;max-height:50vh;overflow:auto';
+      const actions = document.createElement('div');
+      actions.className = 've-dlg-actions';
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.textContent = 'Close';
+      actions.appendChild(close);
+      box.append(title, note, list, actions);
+      dlg.appendChild(box);
+      document.body.appendChild(dlg);
+      const done = () => dlg.remove();
+      close.addEventListener('click', done);
+      dlg.addEventListener('mousedown', (e) => { if (e.target === dlg) done(); });
+      list.textContent = 'Loading…';
+      let blocks = [];
+      try { blocks = await opts.listBlocks(); } catch (err) { done(); opts.toast(err.message, true); return; }
+      list.textContent = '';
+      if (!blocks.length) {
+        list.textContent = 'Nothing saved yet. Click a section, then choose Save block.';
+        return;
+      }
+      for (const b of blocks) {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:8px';
+        const txt = document.createElement('div');
+        txt.style.cssText = 'flex:1;min-width:0';
+        const nm = document.createElement('b');
+        nm.textContent = b.name;
+        const pv = document.createElement('div');
+        pv.className = 've-note';
+        pv.textContent = b.preview;
+        pv.style.cssText = 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+        txt.append(nm, pv);
+        const ins = document.createElement('button');
+        ins.type = 'button';
+        ins.textContent = 'Insert';
+        ins.className = 'primary';
+        ins.addEventListener('click', async () => {
+          try {
+            const full = await opts.getBlock(b.id);
+            if (!insertBlockHtml(full.html)) opts.toast('Click inside a section first.', true);
+            else opts.toast('Added “' + b.name + '” below the section.');
+            done();
+          } catch (err) { opts.toast(err.message, true); }
+        });
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.textContent = 'Delete';
+        del.className = 've-danger';
+        del.addEventListener('click', async () => {
+          if (!confirm('Delete the saved block “' + b.name + '”? Emails that already use it are not changed.')) return;
+          try { await opts.deleteBlock(b.id); row.remove(); } catch (err) { opts.toast(err.message, true); }
+        });
+        row.append(txt, ins, del);
+        list.appendChild(row);
+      }
+    }
+
     /* ---------- toolbar actions ---------- */
     // Keep the email's text selection when a toolbar button is pressed.
     bar.addEventListener('mousedown', (e) => {
@@ -1004,6 +1159,8 @@
         case 'blkDown': moveBlock(1); break;
         case 'blkDup': duplicateBlock(); break;
         case 'blkDel': deleteBlock(); break;
+        case 'blkSave': saveCurrentBlock(); break;
+        case 'blocks': openBlocks(); break;
         case 'blkUndo': undoDelete(); break;
         case 'undo':
           if (iframe.contentWindow) iframe.contentWindow.focus();
@@ -1279,6 +1436,8 @@
       curBlock = null;
       undoOp = null;
       showBlock(null);
+      darkRules = null;
+      applyScheme();
       ui.imgRow.hidden = true;
 
       const st = doc.createElement('style');
@@ -1308,6 +1467,8 @@
       flush,
       // Put a library picture at the cursor, or into the selected picture.
       insertImage(rec, mode) { return insertImage(rec, null, mode); },
+      setScheme(s) { scheme = s === 'dark' ? 'dark' : 'light'; applyScheme(); },
+      hasDarkStyles() { return getDarkRules().length > 0; },
       hasSelectedImage() { return !!(selectedImg && selectedImg.isConnected); },
     };
   };

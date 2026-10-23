@@ -54,6 +54,8 @@
   #previewWrap{display:flex;flex-direction:column;min-width:0;min-height:0;background:#e9e6dd}
   .pv-bar{display:flex;gap:6px;align-items:center;padding:8px 12px;color:var(--muted);font-size:12px}
   .pv-bar button{padding:3px 9px;font-size:12px}
+  .pv-bar .sep{opacity:.4}
+  #schNote{font-size:11px}
   .pv-bar button.on{background:var(--accent);border-color:var(--accent);color:#fff}
   #pvNote{margin-left:6px;color:var(--warn);font-size:12px}
   .pv-stage{flex:1;overflow:auto;display:flex;justify-content:center;padding:0 12px 12px}
@@ -265,6 +267,10 @@
           <span>Preview</span>
           <button data-w="100%" class="on">Desktop</button>
           <button data-w="375px">Phone</button>
+          <span class="sep" aria-hidden="true">|</span>
+          <button data-scheme="light" class="on" title="Show the email in light mode">&#9728; Light</button>
+          <button data-scheme="dark" title="Show how the email looks when an app is in dark mode">&#9790; Dark</button>
+          <span id="schNote"></span>
           <span id="pvNote"></span>
         </div>
         <div id="fmt"></div>
@@ -906,12 +912,25 @@
     }
   }
 
+  // Saving is one-at-a-time (a double Ctrl+S must not create two copies), and if the person
+  // kept typing while the save was in flight, that newer text is still unsaved.
+  let saving = false;
+  function settleAfterSave(sentHtml, typedName, finalName) {
+    const same = $('#code').value === sentHtml;
+    if (same) setDirty(false); else setDirty(true);
+    if ($('#name').value.trim() === typedName) $('#name').value = finalName; // not if they renamed meanwhile
+    return same;
+  }
+
   async function save() {
+    if (saving) return;
     // Master templates are protected: Save always makes a separate draft.
     if (cur.id && cur.master) return saveAsDraft();
     ve.flush();
-    const name = $('#name').value.trim() || 'Untitled email';
+    const typedName = $('#name').value.trim();
+    const name = typedName || 'Untitled email';
     const html = $('#code').value;
+    saving = true;
     $('#saveBtn').disabled = true;
     try {
       if (cur.id) {
@@ -927,40 +946,40 @@
         cur.updated = r.updated;
         templates.unshift(rowFrom(r));
       }
-      clearBackup(cur.id);
       cur.name = name;
-      $('#name').value = name;
       templates.sort((a, b) => (b.updated || '').localeCompare(a.updated || ''));
-      setDirty(false);
+      const same = settleAfterSave(html, typedName, name);
+      if (same) clearBackup(cur.id);
       renderList();
       updateChrome();
-      toast(cur.parent ? 'Draft saved' : 'Saved');
+      toast(same ? (cur.parent ? 'Draft saved' : 'Saved') : 'Saved, but you kept typing. The newest changes are not saved yet.');
     } catch (e) { toast(e.message, true); }
-    finally { $('#saveBtn').disabled = false; }
+    finally { saving = false; $('#saveBtn').disabled = false; }
   }
 
   // Save the editor as a new draft under the current master. The master is untouched.
   async function saveAsDraft() {
+    if (saving) return;
     ve.flush();
     const typed = $('#name').value.trim();
     const name = !typed || typed === cur.name ? `${cur.name} – draft` : typed;
     const masterId = cur.id;
     const html = $('#code').value;
+    saving = true;
     $('#saveBtn').disabled = true;
     try {
       const r = await api('/api/templates', jsonBody('POST', { name, html, tags: cur.tags, parent: masterId }));
       templates.unshift(rowFrom(r));
-      clearBackup(masterId);
       rememberLast(r.id);
       cur = { id: r.id, name: r.name, html, tags: [...cur.tags], master: false, parent: r.parent, updated: r.updated };
-      $('#name').value = r.name;
       templates.sort((a, b) => (b.updated || '').localeCompare(a.updated || ''));
-      setDirty(false);
+      const same = settleAfterSave(html, typed, r.name);
+      if (same) clearBackup(masterId);
       renderList();
       updateChrome();
-      toast('Saved as a draft. The master was not changed.');
+      toast(same ? 'Saved as a draft. The master was not changed.' : 'Saved as a draft, but you kept typing. The newest changes are not saved yet.');
     } catch (e) { toast(e.message, true); }
-    finally { $('#saveBtn').disabled = false; }
+    finally { saving = false; $('#saveBtn').disabled = false; }
   }
 
   async function updateMaster() {
@@ -1359,6 +1378,10 @@
     openLibrary: () => toggleDrawer(true),
     onImageSelect: () => { if (!$('#drawer').hidden) renderImages(); },
     onFocus: () => { focusZone = 'preview'; },
+    listBlocks: async () => (await api('/api/blocks')).blocks,
+    getBlock: (id) => api('/api/blocks/' + id),
+    saveBlock: (b) => api('/api/blocks', jsonBody('POST', b)),
+    deleteBlock: (id) => api('/api/blocks/' + id, { method: 'DELETE' }),
   });
 
   function setMode(m) {
@@ -1466,13 +1489,28 @@
     $('#drop').addEventListener(ev, (e) => { e.preventDefault(); $('#drop').classList.remove('over'); }));
   $('#drop').addEventListener('drop', (e) => upload(e.dataTransfer.files));
 
-  document.querySelectorAll('.pv-bar button').forEach((b) =>
+  document.querySelectorAll('.pv-bar button[data-w]').forEach((b) =>
     b.addEventListener('click', () => {
-      document.querySelectorAll('.pv-bar button').forEach((x) => x.classList.remove('on'));
+      document.querySelectorAll('.pv-bar button[data-w]').forEach((x) => x.classList.remove('on'));
       b.classList.add('on');
       previewDevice = b.dataset.w === '375px' ? 'phone' : 'desktop';
       fitPreview();
     }));
+
+  // Light / Dark preview. This only changes how the preview looks, never the email.
+  function setScheme(s) {
+    ve.setScheme(s);
+    document.querySelectorAll('.pv-bar button[data-scheme]').forEach((x) => x.classList.toggle('on', x.dataset.scheme === s));
+    updateSchemeNote();
+  }
+  function updateSchemeNote() {
+    const dark = document.querySelector('.pv-bar button[data-scheme=dark]').classList.contains('on');
+    $('#schNote').textContent = dark && !ve.hasDarkStyles()
+      ? 'No dark-mode styles in this email. Apps will recolor it their own way.' : '';
+  }
+  document.querySelectorAll('.pv-bar button[data-scheme]').forEach((b) =>
+    b.addEventListener('click', () => setScheme(b.dataset.scheme)));
+  $('#preview').addEventListener('load', () => setTimeout(updateSchemeNote, 0));
 
   window.addEventListener('keydown', (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
