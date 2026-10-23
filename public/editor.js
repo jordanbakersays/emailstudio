@@ -1044,7 +1044,8 @@
       note.className = 've-note';
       note.textContent = 'Insert puts the block right below “' + nameOf(curBlock) + '”. To save a new one, click a section and choose Save block.';
       const list = document.createElement('div');
-      list.style.cssText = 'display:grid;gap:8px;max-height:50vh;overflow:auto';
+      box.style.gridTemplateColumns = 'minmax(0,1fr)';   // keep long previews from stretching the box
+      list.style.cssText = 'display:grid;gap:8px;max-height:50vh;overflow:auto;min-width:0';
       const actions = document.createElement('div');
       actions.className = 've-dlg-actions';
       const close = document.createElement('button');
@@ -1074,8 +1075,8 @@
         nm.textContent = b.name;
         const pv = document.createElement('div');
         pv.className = 've-note';
-        pv.textContent = b.preview;
-        pv.style.cssText = 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+        pv.style.cssText = 'display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere';
+        pv.textContent = b.preview.length > 60 ? b.preview.slice(0, 60).trim() + '…' : b.preview;
         txt.append(nm, pv);
         const ins = document.createElement('button');
         ins.type = 'button';
@@ -1097,7 +1098,10 @@
           if (!confirm('Delete the saved block “' + b.name + '”? Emails that already use it are not changed.')) return;
           try { await opts.deleteBlock(b.id); row.remove(); } catch (err) { opts.toast(err.message, true); }
         });
-        row.append(txt, ins, del);
+        const btns = document.createElement('div');
+        btns.style.cssText = 'display:flex;flex-direction:column;gap:6px;flex:none';
+        btns.append(ins, del);
+        row.append(btns, txt);   // buttons on the left, always visible
         list.appendChild(row);
       }
     }
