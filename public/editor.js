@@ -371,17 +371,30 @@
     // On phones the on-screen keyboard can cover the bottom of the page, and the bars with it.
     // When it is open, keep the bars just above it.
     const vv = window.visualViewport;
+    const coarse = window.matchMedia ? window.matchMedia('(pointer:coarse)') : { matches: false };
     function placeDock() {
       if (!vv) return;
       const covered = Math.round(window.innerHeight - vv.height - vv.offsetTop);
-      if (covered > 80) {
+      let editing = false;
+      try { editing = !!(coarse.matches && doc && doc.hasFocus() && doc.activeElement && doc.activeElement.hasAttribute && doc.activeElement.hasAttribute('data-es-edit')); } catch (e) { /* ignore */ }
+      // the keyboard is (probably) up: the page area is clearly shorter than the screen
+      const kbd = covered > 80 || (editing && window.screen && vv.height < window.screen.height - 250);
+      if (kbd) {
+        // pin it to the bottom of what is actually visible (just above the keyboard)
+        const h = dock.offsetHeight || 0;
         dock.style.position = 'fixed';
-        dock.style.bottom = covered + 'px';
+        dock.style.bottom = 'auto';
+        dock.style.top = Math.max(0, Math.round(vv.offsetTop + vv.height - h)) + 'px';
+        dock.style.zIndex = '60';
       } else {
         dock.style.position = '';
         dock.style.bottom = '';
+        dock.style.top = '';
+        dock.style.zIndex = '';
       }
     }
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => placeDock()).observe(dock);
+    window.addEventListener('scroll', placeDock, { passive: true });
     if (vv) { vv.addEventListener('resize', placeDock); vv.addEventListener('scroll', placeDock); }
     // Fill the dropdowns and color boxes.
     const fontSel = bar.querySelector('[data-sel=font]');
@@ -1739,6 +1752,23 @@
       if (!closestEl(e.target, '[data-es-edit]')) lastRange = null;
     }
 
+    // Figure out which section / paragraph / button the person is in and show its tools. Phones
+    // are unreliable about telling a page inside a page that a tap or a cursor move happened
+    // (click and selectionchange can both go missing), so this is also run from touches,
+    // focus and typing, using the cursor's position as well as the thing that was tapped.
+    function trackAt(node) {
+      if (!doc) return;
+      let n = node && node.nodeType ? node : null;
+      const sel = doc.getSelection();
+      const a = sel && sel.rangeCount && sel.anchorNode && doc.contains(sel.anchorNode) ? sel.anchorNode : null;
+      if (!n) n = a;   // no tap to go by (typing, arrow keys): use the cursor
+      if (!n) return;
+      trackBlock(n);
+      trackText(a && closestEl(a, '[data-es-edit]') ? a : n);
+      trackButton(n);
+      placeDock();
+    }
+
     function onKeyDown(e) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
@@ -2027,7 +2057,19 @@
         if (s && s.rangeCount && s.anchorNode) { const t = textOf(s.anchorNode); if (t && t !== curText) showText(t); const bt = btnOf(s.anchorNode); if (bt !== curBtn) showButton(bt); }
       });
       d.addEventListener('mousedown', () => { if (opts.onFocus) opts.onFocus(); });
-      d.addEventListener('focusin', () => { if (opts.onFocus) opts.onFocus(); });
+      d.addEventListener('focusin', (e) => { if (opts.onFocus) opts.onFocus(); trackAt(e.target); });
+      d.addEventListener('focusout', () => setTimeout(placeDock, 150));
+      // taps on a phone: look at where the cursor ended up once the browser has placed it
+      const afterTap = (e) => {
+        if (e.pointerType === 'mouse') return;   // a mouse click is already handled
+        if (e.target && closestEl(e.target, 'a')) return;
+        const t = e.target;
+        setTimeout(() => trackAt(t), 60);
+        setTimeout(() => trackAt(t), 350);
+      };
+      d.addEventListener('touchend', afterTap, { passive: true });
+      d.addEventListener('pointerup', afterTap);
+      d.addEventListener('keyup', () => trackAt(null));
     }
 
     function init() {
