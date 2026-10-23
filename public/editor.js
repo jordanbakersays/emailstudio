@@ -298,7 +298,7 @@
         <span class="ve-sep"></span>
         <span class="ve-grp">
           <button type="button" data-act="addImage" title="Add a picture where your cursor is">+ Picture</button>
-          <button type="button" data-act="blocks" title="Add a saved section right below the section you picked">+ Block</button>
+          <button type="button" data-act="blocks" title="Add a section from your block library, right below the section you picked">+ Block</button>
         </span>
       </div>
       <div class="ve-row ve-img" hidden>
@@ -316,7 +316,7 @@
         <button type="button" data-act="blkUp" title="Move this section up">&uarr; Up</button>
         <button type="button" data-act="blkDown" title="Move this section down">&darr; Down</button>
         <button type="button" data-act="blkDup" title="Make a copy right below">Duplicate</button>
-        <button type="button" data-act="blkSave" title="Save this section so you can reuse it in any email">Save block</button>
+        <button type="button" data-act="blkSave" title="Copy this section into your block library so you can reuse it in other emails. This does not save your email.">Add to Library</button>
         <button type="button" data-act="blkDel" class="ve-danger" title="Remove this whole section">Delete</button>
         <button type="button" data-act="blkUndo" hidden>Undo</button>
       </div>
@@ -992,11 +992,11 @@
       scheduleChange();
     }
 
-    /* ---------- saved blocks ---------- */
+    /* ---------- block library ---------- */
     async function saveCurrentBlock() {
       const el = curBlock;
       if (!el) return;
-      const name = (prompt('Name for this saved block:', nameOf(el)) || '').trim();
+      const name = (prompt('Name this section for the library (this does not save your email):', nameOf(el)) || '').trim();
       if (!name) return;
       const wrap = doc.createElement('div');
       unitOf(el).forEach((n) => wrap.appendChild(n.cloneNode(true)));
@@ -1004,7 +1004,7 @@
       const preview = wrap.textContent.replace(/\s+/g, ' ').trim().slice(0, 90);
       try {
         await opts.saveBlock({ name, html: wrap.innerHTML, preview });
-        opts.toast('Saved “' + name + '”. Add it to any email with + Block.');
+        opts.toast('Added “' + name + '” to the library. Your email itself is not saved. Use + Block in any email to reuse it.');
       } catch (err) {
         opts.toast(err.message, true);
       }
@@ -1031,7 +1031,7 @@
 
     async function openBlocks() {
       if (!curBlock) {
-        opts.toast('Click inside the section you want it under first. The saved block goes right below that section.', true);
+        opts.toast('Click inside the section you want it under first. The library block goes right below that section.', true);
         return;
       }
       const dlg = document.createElement('div');
@@ -1039,10 +1039,10 @@
       const box = document.createElement('div');
       box.className = 've-dlg-box';
       const title = document.createElement('label');
-      title.textContent = 'Saved blocks';
+      title.textContent = 'Block library';
       const note = document.createElement('div');
       note.className = 've-note';
-      note.textContent = 'Insert puts the block right below “' + nameOf(curBlock) + '”. To save a new one, click a section and choose Save block.';
+      note.textContent = 'Insert puts the block right below “' + nameOf(curBlock) + '”. To add a new one, click a section and choose Add to Library.';
       const list = document.createElement('div');
       box.style.gridTemplateColumns = 'minmax(0,1fr)';   // keep long previews from stretching the box
       list.style.cssText = 'display:grid;gap:8px;max-height:50vh;overflow:auto;min-width:0';
@@ -1063,7 +1063,7 @@
       try { blocks = await opts.listBlocks(); } catch (err) { done(); opts.toast(err.message, true); return; }
       list.textContent = '';
       if (!blocks.length) {
-        list.textContent = 'Nothing saved yet. Click a section, then choose Save block.';
+        list.textContent = 'The library is empty. Click a section, then choose Add to Library.';
         return;
       }
       for (const b of blocks) {
@@ -1095,7 +1095,7 @@
         del.textContent = 'Delete';
         del.className = 've-danger';
         del.addEventListener('click', async () => {
-          if (!confirm('Delete the saved block “' + b.name + '”? Emails that already use it are not changed.')) return;
+          if (!confirm('Remove “' + b.name + '” from the library? Emails that already use it are not changed.')) return;
           try { await opts.deleteBlock(b.id); row.remove(); } catch (err) { opts.toast(err.message, true); }
         });
         const btns = document.createElement('div');
