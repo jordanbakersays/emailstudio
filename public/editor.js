@@ -218,8 +218,14 @@
       #fmt .ve-alt{flex:1 1 200px;padding:3px 8px;font-size:12px}
       #fmt .ve-danger,.ve-dlg .ve-danger,.ve-dock .ve-danger{color:var(--danger)}
       .ve-dock{position:absolute;left:0;right:0;bottom:0;z-index:10;box-shadow:0 -6px 16px rgba(0,0,0,.14)}
+      #fmt .ve-fmtbtn{display:none}
       @media (max-width:820px){
         #fmt .ve-ins{order:-1;margin-right:6px}
+        #fmt .ve-fmtbtn{display:inline-block}
+        #fmt .ve-row.ve-open{flex-wrap:wrap!important;overflow:visible!important}
+        #fmt .ve-row.ve-open .ve-sep{display:none}
+        #fmt .ve-row.ve-open .ve-ins{flex:0 0 100%}
+        #fmt .ve-fmtbtn[aria-pressed=true]{background:var(--accent);color:#fff;border-color:var(--accent)}
         .ve-dock .ve-row{flex-wrap:wrap;padding:4px 8px;gap:4px}
         .ve-dock .ve-row strong{font-size:12px}
         .ve-dock .ve-bname{max-width:96px;font-size:12px}
@@ -311,6 +317,7 @@
         </span>
         <span class="ve-sep"></span>
         <span class="ve-grp ve-ins">
+          <button type="button" data-act="fmtToggle" class="ve-fmtbtn" title="Show or hide the text formatting buttons">Format</button>
           <button type="button" data-act="addImage" title="Add a picture where your cursor is">+ Picture</button>
           <button type="button" data-act="blocks" title="Add a section from your block library, right below the section you picked">+ Block</button>
           <button type="button" data-act="addButton" title="Add a button with your own words and link">+ Button</button>
@@ -1611,6 +1618,13 @@
         case 'btnDel': deleteButton(); break;
         case 'btnUndo': undoDeleteButton(); break;
         case 'addButton': openButtonDialog(null); break;
+        case 'fmtToggle': {
+          const row = bar.querySelector('.ve-row');
+          const on = !row.classList.contains('ve-open');
+          row.classList.toggle('ve-open', on);
+          b.setAttribute('aria-pressed', on ? 'true' : 'false');
+          break;
+        }
         case 'txtUp': moveText(-1); break;
         case 'txtDown': moveText(1); break;
         case 'txtDup': duplicateText(); break;
@@ -1736,6 +1750,7 @@
         selectImage(null);
         return;
       }
+      if (tryJoin(e)) return;
       if (e.key === 'Enter' && !e.isComposing && !e.ctrlKey && !e.metaKey) {
         const host = closestEl(e.target, '[data-es-edit]');
         if (!host || host.tagName === 'UL' || host.tagName === 'OL') return;
@@ -1829,11 +1844,112 @@
     // Safety net for any other way text can arrive (dragging text in, a phone keyboard's
     // clipboard button, a browser that skips the paste step): clean it up afterwards.
     let sanitizeNext = null;
+    // True when the cursor sits in a bullet list, where Enter should make a new bullet.
+    function inListContext(host) {
+      if (!host || host.tagName === 'UL' || host.tagName === 'OL') return true;
+      const sel = doc.getSelection();
+      return !!(sel && sel.anchorNode && closestEl(sel.anchorNode, 'li'));
+    }
+
     function onBeforeInput(e) {
+      // Phone keyboards often skip the normal Enter key event and ask for a "new paragraph"
+      // instead. Left alone, the browser would wrap the new line in a <div>, which later turns
+      // into a separate text area. Treat it exactly like Enter: a line break in the same paragraph.
+      if (e.inputType === 'insertParagraph') {
+        const host = closestEl(e.target, '[data-es-edit]');
+        if (host && !inListContext(host)) {
+          e.preventDefault();
+          if (!doc.execCommand('insertLineBreak')) doc.execCommand('insertHTML', false, '<br>');
+          scheduleChange();
+        }
+        return;
+      }
+      if (e.inputType === 'deleteContentBackward' || e.inputType === 'deleteContentForward') {
+        if (tryJoinAt(closestEl(e.target, '[data-es-edit]'), e.inputType === 'deleteContentBackward')) e.preventDefault();
+        return;
+      }
       if (!/^insertFrom(Paste|Drop|Yank|PasteAsQuotation)$/.test(e.inputType || '')) return;
       const host = closestEl(e.target, '[data-es-edit]');
       if (host) sanitizeNext = { host, before: snapshot(host) };
     }
+    // A browser that still added <div>/<p> wrappers inside a text area: turn them into line breaks.
+    function flattenBlocks(host) {
+      if (!host || !host.isConnected || host.tagName === 'UL' || host.tagName === 'OL') return;
+      const blocks = [...host.children].filter((c) => c.tagName === 'DIV' || c.tagName === 'P');
+      let last = null;
+      for (const el of blocks) {
+        const parts = [];
+        if (el.previousSibling && !(el.previousSibling.nodeType === 1 && el.previousSibling.tagName === 'BR')) parts.push(doc.createElement('br'));
+        const kids = [...el.childNodes].filter((n) => !(n.nodeType === 1 && n.tagName === 'BR' && el.childNodes.length === 1));
+        parts.push(...kids);
+        if (!kids.length && !parts.length) parts.push(doc.createElement('br'));
+        el.replaceWith(...parts);
+        if (kids.length) last = kids[kids.length - 1];
+      }
+      if (last) {
+        const r = doc.createRange();
+        if (last.nodeType === 3) r.setStart(last, last.length); else r.setStartAfter(last);
+        r.collapse(true);
+        const sel = doc.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(r);
+      }
+    }
+
+    // Backspace at the very start of a text area (or Delete at the very end) joins it with its
+    // neighbour, like any word processor. Only text areas that sit side by side are joined.
+    function atEdge(host, sel, atStart) {
+      if (!sel || !sel.rangeCount || !sel.isCollapsed) return false;
+      const r = sel.getRangeAt(0).cloneRange();
+      if (!host.contains(r.startContainer)) return false;
+      const probe = doc.createRange();
+      probe.selectNodeContents(host);
+      if (atStart) probe.setEnd(r.startContainer, r.startOffset); else probe.setStart(r.startContainer, r.startOffset);
+      const frag = probe.cloneContents();
+      return !frag.textContent.length && !frag.querySelector('img');
+    }
+    function neighbourHost(host, dir) {
+      const other = neighbourHostAny(host, dir);
+      // only like with like: a paragraph never melts into the heading above it
+      return other && other.tagName === host.tagName && (other.getAttribute('class') || '') === (host.getAttribute('class') || '') ? other : null;
+    }
+    function neighbourHostAny(host, dir) {
+      let n = dir < 0 ? host.previousSibling : host.nextSibling;
+      while (n && ((n.nodeType === 3 && !n.nodeValue.trim()) || n.nodeType === 8)) n = dir < 0 ? n.previousSibling : n.nextSibling;
+      if (!n || n.nodeType !== 1 || !n.hasAttribute('data-es-edit')) return null;
+      if (/^(UL|OL)$/.test(n.tagName) || n.hasAttribute('data-es-loose')) return null;
+      return n;
+    }
+    function joinHosts(first, second) {
+      const at = first.childNodes.length;
+      first.append(...second.childNodes);
+      second.remove();
+      const r = doc.createRange();
+      r.setStart(first, Math.min(at, first.childNodes.length));
+      r.collapse(true);
+      const sel = doc.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(r);
+      first.normalize(); // the cursor moves along with the words it sits between
+      showText(first);
+      scheduleChange();
+    }
+    function tryJoinAt(host, back) {
+      if (!host || /^(UL|OL)$/.test(host.tagName) || host.hasAttribute('data-es-loose')) return false;
+      if (!atEdge(host, doc.getSelection(), back)) return false;
+      const other = neighbourHost(host, back ? -1 : 1);
+      if (!other) return false;
+      if (back) joinHosts(other, host); else joinHosts(host, other);
+      return true;
+    }
+    function tryJoin(e) {
+      if (e.key !== 'Backspace' && e.key !== 'Delete') return false;
+      if (e.isComposing || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return false;
+      if (!tryJoinAt(closestEl(e.target, '[data-es-edit]'), e.key === 'Backspace')) return false;
+      e.preventDefault();
+      return true;
+    }
+
     function onInputSanitize() {
       if (!sanitizeNext) return;
       const { host, before } = sanitizeNext;
@@ -1896,7 +2012,11 @@
       d.addEventListener('click', onClick, true);
       d.addEventListener('keydown', onKeyDown);
       d.addEventListener('beforeinput', onBeforeInput);
-      d.addEventListener('input', () => { onInputSanitize(); scheduleChange(); });
+      d.addEventListener('input', (e) => {
+        onInputSanitize();
+        if (e.inputType === 'insertParagraph') flattenBlocks(closestEl(e.target, '[data-es-edit]'));
+        scheduleChange();
+      });
       d.addEventListener('paste', onPaste);
       d.addEventListener('dragover', onDragOver);
       d.addEventListener('dragleave', (e) => { if (!e.relatedTarget) clearDropMark(); });
