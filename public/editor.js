@@ -219,9 +219,14 @@
       #fmt .ve-danger,.ve-dlg .ve-danger,.ve-dock .ve-danger{color:var(--danger)}
       .ve-dock{position:absolute;left:0;right:0;bottom:0;z-index:10;box-shadow:0 -6px 16px rgba(0,0,0,.14)}
       @media (max-width:820px){
-        .ve-dock .ve-row{flex-wrap:nowrap;overflow-x:auto;padding:4px 8px;gap:4px;-webkit-overflow-scrolling:touch}
-        .ve-dock .ve-row>*{flex:none}
-        .ve-dock .ve-bname{max-width:90px}
+        #fmt .ve-ins{order:-1;margin-right:6px}
+        .ve-dock .ve-row{flex-wrap:wrap;padding:4px 8px;gap:4px}
+        .ve-dock .ve-row strong{font-size:12px}
+        .ve-dock .ve-bname{max-width:96px;font-size:12px}
+        .ve-dock .ve-row button{min-width:40px;min-height:36px;padding:0 8px;font-size:0}
+        .ve-dock .ve-row button::before{content:attr(data-ico);font-size:15px}
+        .ve-dock .ve-row button:not([data-ico])::before{content:none}
+        .ve-dock .ve-row button:not([data-ico]){font-size:13px}
       }
       #fmt .ve-hint{padding:0 12px 6px;color:var(--muted);font-size:12px}
       .ve-dlg{position:fixed;inset:0;background:rgba(0,0,0,.28);display:grid;place-items:center;z-index:20}
@@ -305,7 +310,7 @@
           <button type="button" data-act="redo" title="Redo (Ctrl+Y)">&#8631;</button>
         </span>
         <span class="ve-sep"></span>
-        <span class="ve-grp">
+        <span class="ve-grp ve-ins">
           <button type="button" data-act="addImage" title="Add a picture where your cursor is">+ Picture</button>
           <button type="button" data-act="blocks" title="Add a section from your block library, right below the section you picked">+ Block</button>
           <button type="button" data-act="addButton" title="Add a button with your own words and link">+ Button</button>
@@ -323,31 +328,31 @@
       <div class="ve-row ve-blk" hidden>
         <strong>Section</strong>
         <span class="ve-bname"></span>
-        <button type="button" data-act="blkUp" title="Move this section up">&uarr; Up</button>
-        <button type="button" data-act="blkDown" title="Move this section down">&darr; Down</button>
-        <button type="button" data-act="blkDup" title="Make a copy right below">Duplicate</button>
-        <button type="button" data-act="blkSave" title="Copy this section into your block library so you can reuse it in other emails. This does not save your email.">Add to Library</button>
-        <button type="button" data-act="blkDel" class="ve-danger" title="Remove this whole section">Delete</button>
-        <button type="button" data-act="blkUndo" hidden>Undo</button>
+        <button type="button" data-act="blkUp" data-ico="↑" title="Move this section up">&uarr; Up</button>
+        <button type="button" data-act="blkDown" data-ico="↓" title="Move this section down">&darr; Down</button>
+        <button type="button" data-act="blkDup" data-ico="⧉" title="Make a copy right below">Duplicate</button>
+        <button type="button" data-act="blkSave" data-ico="Library" title="Copy this section into your block library so you can reuse it in other emails. This does not save your email.">Add to Library</button>
+        <button type="button" data-act="blkDel" data-ico="🗑" class="ve-danger" title="Remove this whole section">Delete</button>
+        <button type="button" data-act="blkUndo" data-ico="Undo" hidden>Undo</button>
       </div>
       <div class="ve-row ve-blk ve-txtrow" hidden>
         <strong class="ve-tlabel">Paragraph</strong>
         <span class="ve-bname ve-tname"></span>
-        <button type="button" data-act="txtUp" title="Move this paragraph up">&uarr; Up</button>
-        <button type="button" data-act="txtDown" title="Move this paragraph down">&darr; Down</button>
-        <button type="button" data-act="txtDup" title="Make a copy right below">Duplicate</button>
-        <button type="button" data-act="txtDel" class="ve-danger" title="Remove this paragraph">Delete</button>
-        <button type="button" data-act="txtUndo" hidden>Undo</button>
+        <button type="button" data-act="txtUp" data-ico="↑" title="Move this paragraph up">&uarr; Up</button>
+        <button type="button" data-act="txtDown" data-ico="↓" title="Move this paragraph down">&darr; Down</button>
+        <button type="button" data-act="txtDup" data-ico="⧉" title="Make a copy right below">Duplicate</button>
+        <button type="button" data-act="txtDel" data-ico="🗑" class="ve-danger" title="Remove this paragraph">Delete</button>
+        <button type="button" data-act="txtUndo" data-ico="Undo" hidden>Undo</button>
       </div>
       <div class="ve-row ve-blk ve-btnrow" hidden>
         <strong>Button</strong>
         <span class="ve-bname ve-bbname"></span>
-        <button type="button" data-act="btnEdit" title="Change the words, link, color or position">Edit&hellip;</button>
-        <button type="button" data-act="btnUp" title="Move this button up">&uarr; Up</button>
-        <button type="button" data-act="btnDown" title="Move this button down">&darr; Down</button>
-        <button type="button" data-act="btnDup" title="Make a copy right below">Duplicate</button>
-        <button type="button" data-act="btnDel" class="ve-danger" title="Remove this button">Delete</button>
-        <button type="button" data-act="btnUndo" hidden>Undo delete</button>
+        <button type="button" data-act="btnEdit" data-ico="Edit" title="Change the words, link, color or position">Edit&hellip;</button>
+        <button type="button" data-act="btnUp" data-ico="↑" title="Move this button up">&uarr; Up</button>
+        <button type="button" data-act="btnDown" data-ico="↓" title="Move this button down">&darr; Down</button>
+        <button type="button" data-act="btnDup" data-ico="⧉" title="Make a copy right below">Duplicate</button>
+        <button type="button" data-act="btnDel" data-ico="🗑" class="ve-danger" title="Remove this button">Delete</button>
+        <button type="button" data-act="btnUndo" data-ico="Undo" hidden>Undo delete</button>
       </div>
       <div class="ve-hint">Click any text to edit it. Click a picture to change it.</div>`;
     // The Section and Paragraph bars float over the bottom of the preview instead of sitting
@@ -356,6 +361,21 @@
     dock.className = 've-dock';
     (iframe.closest('#previewWrap') || iframe.parentElement).appendChild(dock);
     dock.append(...bar.querySelectorAll('.ve-blk'));
+    // On phones the on-screen keyboard can cover the bottom of the page, and the bars with it.
+    // When it is open, keep the bars just above it.
+    const vv = window.visualViewport;
+    function placeDock() {
+      if (!vv) return;
+      const covered = Math.round(window.innerHeight - vv.height - vv.offsetTop);
+      if (covered > 80) {
+        dock.style.position = 'fixed';
+        dock.style.bottom = covered + 'px';
+      } else {
+        dock.style.position = '';
+        dock.style.bottom = '';
+      }
+    }
+    if (vv) { vv.addEventListener('resize', placeDock); vv.addEventListener('scroll', placeDock); }
     // Fill the dropdowns and color boxes.
     const fontSel = bar.querySelector('[data-sel=font]');
     const sizeSel = bar.querySelector('[data-sel=size]');
@@ -1119,6 +1139,57 @@
       scheduleChange();
     }
 
+    /* ---------- where new things go (buttons, library blocks) ---------- */
+    // On a phone you can only tap inside text, so a new button or block is offered a short list of
+    // places instead of needing a tap exactly there: below what you tapped, below the box around it,
+    // or at the bottom of the main area.
+    const kindOf = (el) => (el.classList && el.classList.contains('es-button') ? 'button' : el === curBlock ? 'section' : textKind(el).toLowerCase());
+    function mainArea() {
+      const counts = new Map();
+      doc.querySelectorAll('[data-es-edit]').forEach((h) => {
+        const p = h.parentElement;
+        if (p && p !== doc.body) counts.set(p, (counts.get(p) || 0) + 1);
+      });
+      let best = null, n = 0;
+      counts.forEach((c, p) => { if (c > n) { best = p; n = c; } });
+      return best;
+    }
+    function placementOptions() {
+      const out = [];
+      const add = (label, parent, before) => {
+        if (!parent || out.some((o) => o.parent === parent && o.before === before)) return;
+        out.push({ label, parent, before });
+      };
+      const below = (label, el) => add(label, el.parentNode, el.nextSibling);
+      const start = curBtn || curText || curBlock;
+      let top = null;
+      if (start && start.isConnected) {
+        below('Right below this ' + kindOf(start) + (start === curBlock ? ' (' + nameOf(start) + ')' : ''), start);
+        let found = 0;
+        for (let a = start.parentElement; a && a !== doc.body; a = a.parentElement) {
+          const p = a.parentElement;
+          if (!isBox(a) || !p || p === doc.body) continue;
+          if ([...p.children].length < 2) continue;
+          below('Below the box around it (' + nameOf(a) + ')', a);
+          top = p;
+          if (++found >= 2) break;
+        }
+        add(top ? 'At the bottom of the main area' : 'At the bottom of this area', top || start.parentNode, null);
+      }
+      const main = mainArea();
+      if (main) add('At the bottom of the main area', main, null);
+      return out;
+    }
+    // A drop-down listing those places. get() returns the chosen one.
+    function placementSelect() {
+      const choices = placementOptions();
+      const sel = document.createElement('select');
+      sel.style.cssText = 'width:100%;max-width:100%';
+      choices.forEach((c, i) => { const o = document.createElement('option'); o.value = i; o.textContent = c.label; sel.appendChild(o); });
+      return { el: sel, count: choices.length, get: () => choices[Number(sel.value)] || null };
+    }
+    const putNodes = (where, nodes) => nodes.forEach((n) => where.parent.insertBefore(n, where.before && where.before.parentNode === where.parent ? where.before : null));
+
     /* ---------- buttons ---------- */
     const btnRow = dock.querySelector('.ve-btnrow');
     const btnName = dock.querySelector('.ve-bbname');
@@ -1268,6 +1339,9 @@
         b.addEventListener('click', () => { align = p; renderPreview(); });
         aRow.appendChild(b); return b;
       });
+      const place = existing ? null : placementSelect();
+      if (place && !place.count) { opts.toast('There is no text to put a button next to yet.', true); return; }
+      const wLbl = mk('label', {}, 'Where should it go?');
       const pvLbl = mk('label', {}, 'Preview');
       const pv = mk('div'); pv.style.cssText = 'background:#fff;border:1px solid var(--line);border-radius:8px;padding:0 12px';
       function renderPreview() {
@@ -1279,7 +1353,9 @@
       const ok = mk('button', { type: 'button', className: 'primary' }, existing ? 'Apply' : 'Add button');
       const cancel = mk('button', { type: 'button' }, 'Cancel');
       actions.append(ok, cancel);
-      box.append(title, tLbl, tIn, uLbl, uIn, cLbl, colors, aLbl, aRow, pvLbl, pv, actions);
+      box.append(title, tLbl, tIn, uLbl, uIn, cLbl, colors, aLbl, aRow);
+      if (place) box.append(wLbl, place.el);
+      box.append(pvLbl, pv, actions);
       dlg.appendChild(box);
       document.body.appendChild(dlg);
       paint();
@@ -1294,7 +1370,7 @@
         if (!href) { opts.toast(href === null ? "That doesn't look like a web address, email address or phone number." : 'Add where the button should go.', true); uIn.focus(); return; }
         done();
         if (existing) applyButton(existing, { text, href, bg, align });
-        else insertButton({ text, href, bg, align });
+        else insertButton({ text, href, bg, align }, place.get());
       };
       ok.addEventListener('click', submit);
       dlg.addEventListener('keydown', (ev) => {
@@ -1302,14 +1378,13 @@
         else if (ev.key === 'Escape') done();
       });
     }
-    function insertButton(o) {
-      const after = curText || curBlock;
-      if (!after || !after.isConnected) { opts.toast('Click in the text above where you want the button first.', true); return; }
+    function insertButton(o, where) {
+      if (!where) { opts.toast('Could not find a place for the button.', true); return; }
       ensureButtonStyle();
       const t = doc.createElement('template');
       t.innerHTML = buttonHtml(o);
       const node = t.content.firstElementChild;
-      after.parentNode.insertBefore(node, after.nextSibling);
+      putNodes(where, [node]);
       markEditable(node);
       undoBtn = null;
       showButton(node);
@@ -1347,16 +1422,14 @@
       }
     }
 
-    function insertBlockHtml(html) {
-      const target = curBlock;
-      if (!target || !target.isConnected) return false;
+    function insertBlockHtml(html, where) {
+      if (!where) return false;
       const t = doc.createElement('template');
       t.innerHTML = html;
       t.content.querySelectorAll('script').forEach((s) => s.remove());
       const nodes = [...t.content.childNodes];
       if (!nodes.length) return false;
-      const ref = target.nextSibling;
-      nodes.forEach((n) => target.parentNode.insertBefore(n, ref));
+      putNodes(where, nodes);
       nodes.forEach((n) => { if (n.nodeType === 1) markEditable(n); });
       const added = [...nodes].reverse().find(isBox) || null;
       undoOp = null;
@@ -1367,8 +1440,9 @@
     }
 
     async function openBlocks() {
-      if (!curBlock) {
-        opts.toast('Click inside the section you want it under first. The library block goes right below that section.', true);
+      const place = placementSelect();
+      if (!place.count) {
+        opts.toast('There is no text to put a block next to yet.', true);
         return;
       }
       const dlg = document.createElement('div');
@@ -1379,7 +1453,9 @@
       title.textContent = 'Block library';
       const note = document.createElement('div');
       note.className = 've-note';
-      note.textContent = 'Insert puts the block right below “' + nameOf(curBlock) + '”. To add a new one, click a section and choose Add to Library.';
+      note.textContent = 'Choose where it goes, then press Insert. To add to the library, tap a section and choose Add to Library.';
+      const wLbl = document.createElement('label');
+      wLbl.textContent = 'Where should it go?';
       const list = document.createElement('div');
       box.style.gridTemplateColumns = 'minmax(0,1fr)';   // keep long previews from stretching the box
       list.style.cssText = 'display:grid;gap:8px;max-height:50vh;overflow:auto;min-width:0';
@@ -1389,7 +1465,7 @@
       close.type = 'button';
       close.textContent = 'Close';
       actions.appendChild(close);
-      box.append(title, note, list, actions);
+      box.append(title, note, wLbl, place.el, list, actions);
       dlg.appendChild(box);
       document.body.appendChild(dlg);
       const done = () => dlg.remove();
@@ -1422,8 +1498,8 @@
         ins.addEventListener('click', async () => {
           try {
             const full = await opts.getBlock(b.id);
-            if (!insertBlockHtml(full.html)) opts.toast('Click inside a section first.', true);
-            else opts.toast('Added “' + b.name + '” below the section.');
+            if (!insertBlockHtml(full.html, place.get())) opts.toast('Could not find a place for it.', true);
+            else opts.toast('Added “' + b.name + '”.');
             done();
           } catch (err) { opts.toast(err.message, true); }
         });
@@ -1508,10 +1584,7 @@
         case 'btnDup': duplicateButton(); break;
         case 'btnDel': deleteButton(); break;
         case 'btnUndo': undoDeleteButton(); break;
-        case 'addButton':
-          if (!curText && !curBlock) { opts.toast('Click in the text above where you want the button first.', true); break; }
-          openButtonDialog(null);
-          break;
+        case 'addButton': openButtonDialog(null); break;
         case 'txtUp': moveText(-1); break;
         case 'txtDown': moveText(1); break;
         case 'txtDup': duplicateText(); break;
