@@ -194,9 +194,9 @@
     const s = document.createElement('style');
     s.id = 've-styles';
     s.textContent = `
-      #fmt .ve-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px 12px}
-      #fmt .ve-row button{padding:3px 9px;font-size:12px}
-      #fmt .ve-row button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+      #fmt .ve-row,.ve-dock .ve-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px 12px}
+      #fmt .ve-row button,.ve-dock .ve-row button{padding:3px 9px;font-size:12px}
+      #fmt .ve-row button.on,.ve-dock .ve-row button.on{background:var(--accent);border-color:var(--accent);color:#fff}
       #fmt .ve-row select{font:inherit;font-size:12px;padding:3px 4px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--ink);max-width:110px}
       #fmt .ve-pw{position:relative;display:inline-block}
       #fmt .ve-pop{position:fixed;z-index:40;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px;box-shadow:0 8px 28px rgba(0,0,0,.22);display:grid;gap:6px;width:176px}
@@ -211,10 +211,18 @@
       #fmt .ve-grp{display:inline-flex;gap:6px;align-items:center;flex-wrap:nowrap}
       #fmt .ve-sep{width:1px;height:18px;background:var(--line)}
       #fmt .ve-img{background:#e6f2f0;border-top:1px solid #bfe0db;border-bottom:1px solid #bfe0db}
-      #fmt .ve-blk{background:#eaf0fb;border-top:1px solid #c5d3ee;border-bottom:1px solid #c5d3ee}
-      #fmt .ve-bname{font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      #fmt .ve-blk,.ve-dock .ve-blk{background:#eaf0fb;border-top:1px solid #c5d3ee;border-bottom:1px solid #c5d3ee}
+      #fmt .ve-txtrow,.ve-dock .ve-txtrow{background:#f4f1e6;border-top:1px solid #e0d9bd;border-bottom:1px solid #e0d9bd}
+      #fmt .ve-btnrow,.ve-dock .ve-btnrow{background:#efeafa;border-top:1px solid #d4c9ee;border-bottom:1px solid #d4c9ee}
+      #fmt .ve-bname,.ve-dock .ve-bname{font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       #fmt .ve-alt{flex:1 1 200px;padding:3px 8px;font-size:12px}
-      #fmt .ve-danger,.ve-dlg .ve-danger{color:var(--danger)}
+      #fmt .ve-danger,.ve-dlg .ve-danger,.ve-dock .ve-danger{color:var(--danger)}
+      .ve-dock{position:absolute;left:0;right:0;bottom:0;z-index:10;box-shadow:0 -6px 16px rgba(0,0,0,.14)}
+      @media (max-width:820px){
+        .ve-dock .ve-row{flex-wrap:nowrap;overflow-x:auto;padding:4px 8px;gap:4px;-webkit-overflow-scrolling:touch}
+        .ve-dock .ve-row>*{flex:none}
+        .ve-dock .ve-bname{max-width:90px}
+      }
       #fmt .ve-hint{padding:0 12px 6px;color:var(--muted);font-size:12px}
       .ve-dlg{position:fixed;inset:0;background:rgba(0,0,0,.28);display:grid;place-items:center;z-index:20}
       .ve-dlg-box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;width:min(420px,92vw);display:grid;gap:10px;box-shadow:0 10px 40px rgba(0,0,0,.25)}
@@ -235,6 +243,7 @@
     img:hover{outline:2px dashed rgba(15,118,110,.65);outline-offset:2px}
     img[data-es-sel]{outline:3px solid #0f766e!important;outline-offset:2px}
     [data-es-block]{outline:2px solid rgba(37,99,235,.55)!important;outline-offset:-2px}
+    html{padding-bottom:84px!important}
     [data-es-drop]{outline:3px dashed #0f766e!important;outline-offset:2px}
   `;
 
@@ -299,6 +308,7 @@
         <span class="ve-grp">
           <button type="button" data-act="addImage" title="Add a picture where your cursor is">+ Picture</button>
           <button type="button" data-act="blocks" title="Add a section from your block library, right below the section you picked">+ Block</button>
+          <button type="button" data-act="addButton" title="Add a button with your own words and link">+ Button</button>
         </span>
       </div>
       <div class="ve-row ve-img" hidden>
@@ -320,7 +330,32 @@
         <button type="button" data-act="blkDel" class="ve-danger" title="Remove this whole section">Delete</button>
         <button type="button" data-act="blkUndo" hidden>Undo</button>
       </div>
+      <div class="ve-row ve-blk ve-txtrow" hidden>
+        <strong class="ve-tlabel">Paragraph</strong>
+        <span class="ve-bname ve-tname"></span>
+        <button type="button" data-act="txtUp" title="Move this paragraph up">&uarr; Up</button>
+        <button type="button" data-act="txtDown" title="Move this paragraph down">&darr; Down</button>
+        <button type="button" data-act="txtDup" title="Make a copy right below">Duplicate</button>
+        <button type="button" data-act="txtDel" class="ve-danger" title="Remove this paragraph">Delete</button>
+        <button type="button" data-act="txtUndo" hidden>Undo</button>
+      </div>
+      <div class="ve-row ve-blk ve-btnrow" hidden>
+        <strong>Button</strong>
+        <span class="ve-bname ve-bbname"></span>
+        <button type="button" data-act="btnEdit" title="Change the words, link, color or position">Edit&hellip;</button>
+        <button type="button" data-act="btnUp" title="Move this button up">&uarr; Up</button>
+        <button type="button" data-act="btnDown" title="Move this button down">&darr; Down</button>
+        <button type="button" data-act="btnDup" title="Make a copy right below">Duplicate</button>
+        <button type="button" data-act="btnDel" class="ve-danger" title="Remove this button">Delete</button>
+        <button type="button" data-act="btnUndo" hidden>Undo delete</button>
+      </div>
       <div class="ve-hint">Click any text to edit it. Click a picture to change it.</div>`;
+    // The Section and Paragraph bars float over the bottom of the preview instead of sitting
+    // in the toolbar, so showing or hiding them never pushes the email up or down under the cursor.
+    const dock = document.createElement('div');
+    dock.className = 've-dock';
+    (iframe.closest('#previewWrap') || iframe.parentElement).appendChild(dock);
+    dock.append(...bar.querySelectorAll('.ve-blk'));
     // Fill the dropdowns and color boxes.
     const fontSel = bar.querySelector('[data-sel=font]');
     const sizeSel = bar.querySelector('[data-sel=size]');
@@ -872,9 +907,9 @@
     // A section is a table or div that sits in a stack of two or more of them
     // (like the Elder Spotlight in the newsletter). A plain comment right above
     // it (<!-- Elder Spotlight -->) travels with it and gives it its name.
-    const blkRow = bar.querySelector('.ve-blk');
-    const blkName = bar.querySelector('.ve-bname');
-    const blkUndo = bar.querySelector('[data-act=blkUndo]');
+    const blkRow = dock.querySelector('.ve-blk');
+    const blkName = dock.querySelector('.ve-bname');
+    const blkUndo = dock.querySelector('[data-act=blkUndo]');
     let curBlock = null;
     let undoOp = null;
     let scheme = 'light';
@@ -883,7 +918,7 @@
     function blockOf(node) {
       for (let a = node && (node.nodeType === 1 ? node : node.parentElement); a && a !== doc.body && a !== doc.documentElement; a = a.parentElement) {
         const p = a.parentElement;
-        if (!isBox(a) || !p || p === doc.body) continue;
+        if (!isBox(a) || !p || p === doc.body || a.classList.contains('es-button')) continue;
         if ([...p.children].filter(isBox).length >= 2) return a;
       }
       return null;
@@ -921,15 +956,16 @@
       return null;
     }
     function showBlock(el) {
+      if (curText && !curText.isConnected) showText(null);
       if (curBlock && curBlock !== el) curBlock.removeAttribute('data-es-block');
       curBlock = el && el.isConnected ? el : null;
       if (curBlock) curBlock.setAttribute('data-es-block', '');
       blkRow.hidden = !curBlock && !undoOp;
       blkName.textContent = curBlock ? nameOf(curBlock) : '';
-      bar.querySelectorAll('[data-act=blkUp],[data-act=blkDown],[data-act=blkDup],[data-act=blkSave],[data-act=blkDel]').forEach((b) => { b.hidden = !curBlock; });
+      dock.querySelectorAll('[data-act=blkUp],[data-act=blkDown],[data-act=blkDup],[data-act=blkSave],[data-act=blkDel]').forEach((b) => { b.hidden = !curBlock; });
       if (curBlock) {
-        bar.querySelector('[data-act=blkUp]').disabled = !siblingBlock(curBlock, -1);
-        bar.querySelector('[data-act=blkDown]').disabled = !siblingBlock(curBlock, 1);
+        dock.querySelector('[data-act=blkUp]').disabled = !siblingBlock(curBlock, -1);
+        dock.querySelector('[data-act=blkDown]').disabled = !siblingBlock(curBlock, 1);
       }
       blkUndo.hidden = !undoOp;
     }
@@ -989,6 +1025,307 @@
       op.nodes.forEach((n) => op.parent.insertBefore(n, ref));
       undoOp = null;
       showBlock(op.nodes[op.nodes.length - 1]);
+      scheduleChange();
+    }
+
+    /* ---------- single paragraphs, headings and lists ---------- */
+    const txtRow = dock.querySelector('.ve-txtrow');
+    const txtName = dock.querySelector('.ve-tname');
+    const txtLabel = dock.querySelector('.ve-tlabel');
+    const txtUndoBtn = dock.querySelector('[data-act=txtUndo]');
+    const TEXT_TAGS = new Set(['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'UL', 'OL', 'BLOCKQUOTE', 'DIV', 'PRE']);
+    let curText = null;
+    let undoTxt = null;
+
+    function textOf(node) {
+      const host = node ? closestEl(node, '[data-es-edit]') : null;
+      if (!host || host === doc.body || !host.parentElement) return null;
+      if (host.hasAttribute('data-es-loose') || TEXT_TAGS.has(host.tagName)) return host;
+      return null;
+    }
+    function textKind(el) {
+      if (/^H[1-6]$/.test(el.tagName)) return 'Heading';
+      if (el.tagName === 'UL' || el.tagName === 'OL') return 'List';
+      return 'Paragraph';
+    }
+    function showText(el) {
+      curText = el && el.isConnected ? el : null;
+      txtRow.hidden = !curText && !undoTxt;
+      const kind = curText ? textKind(curText) : (undoTxt ? undoTxt.kind : 'Paragraph');
+      txtLabel.textContent = kind;
+      txtName.textContent = curText ? '“' + curText.textContent.replace(/\s+/g, ' ').trim().slice(0, 28) + '…”' : '';
+      dock.querySelectorAll('[data-act=txtUp],[data-act=txtDown],[data-act=txtDup],[data-act=txtDel]').forEach((b) => { b.hidden = !curText; });
+      if (curText) {
+        dock.querySelector('[data-act=txtUp]').disabled = !curText.previousElementSibling;
+        dock.querySelector('[data-act=txtDown]').disabled = !curText.nextElementSibling;
+        txtName.title = curText.textContent.replace(/\s+/g, ' ').trim();
+      }
+      txtUndoBtn.hidden = !undoTxt;
+      txtUndoBtn.textContent = 'Undo delete';
+    }
+    function trackText(node) {
+      if (!doc) return;
+      const t = node ? textOf(node) : null;
+      if (t !== curText) showText(t);
+    }
+    function moveText(dir) {
+      const el = curText;
+      const other = el && (dir < 0 ? el.previousElementSibling : el.nextElementSibling);
+      if (!other) return;
+      const mine = unitOf(el);
+      const ref = dir < 0 ? unitOf(other)[0] : other.nextSibling;
+      mine.forEach((n) => other.parentNode.insertBefore(n, ref));
+      undoTxt = null;
+      showText(el);
+      el.scrollIntoView({ block: 'nearest' });
+      scheduleChange();
+    }
+    function duplicateText() {
+      const el = curText;
+      if (!el) return;
+      const nodes = unitOf(el).map((n) => n.cloneNode(true));
+      const copy = nodes[nodes.length - 1];
+      const ref = el.nextSibling;
+      nodes.forEach((n) => el.parentNode.insertBefore(n, ref));
+      undoTxt = null;
+      showText(copy);
+      copy.scrollIntoView({ block: 'nearest' });
+      scheduleChange();
+    }
+    function deleteText() {
+      const el = curText;
+      if (!el) return;
+      const nodes = unitOf(el);
+      const parent = el.parentNode;
+      const next = el.nextSibling;
+      const kind = textKind(el);
+      nodes.forEach((n) => n.remove());
+      undoTxt = { nodes, parent, next, kind };
+      curText = null;
+      lastRange = null;
+      showText(null);
+      txtName.textContent = kind + ' deleted';
+      txtRow.hidden = false;
+      showBlock(curBlock);   // the section around it may have changed state
+      scheduleChange();
+    }
+    function undoDeleteText() {
+      const op = undoTxt;
+      if (!op) return;
+      const ref = op.next && op.next.parentNode === op.parent ? op.next : null;
+      op.nodes.forEach((n) => op.parent.insertBefore(n, ref));
+      undoTxt = null;
+      showText(op.nodes[op.nodes.length - 1]);
+      scheduleChange();
+    }
+
+    /* ---------- buttons ---------- */
+    const btnRow = dock.querySelector('.ve-btnrow');
+    const btnName = dock.querySelector('.ve-bbname');
+    const btnUndoEl = dock.querySelector('[data-act=btnUndo]');
+    const BTN_COLORS = [['Orange', '#D9480F'], ['Green', '#3E8E63'], ['Blue', '#2563EB'], ['Charcoal', '#222222'], ['Red', '#C0392B']];
+    const BTN_CSS = '/* es-button */\n' +
+      'td.es-btn-cell a.es-btn-light{color:#ffffff !important;text-decoration:none !important}\n' +
+      'td.es-btn-cell a.es-btn-dark{color:#111111 !important;text-decoration:none !important}\n';
+    let curBtn = null;
+    let undoBtn = null;
+
+    function hexLum(hex) {
+      const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+        .map((v) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+      return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    }
+    const lightText = (bg) => hexLum(bg) < 0.4;   // white words on dark buttons, dark words on light ones
+
+    function buttonHtml(o) {
+      const light = lightText(o.bg);
+      return '<table role="presentation" class="es-button" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:16px 0;"><tbody><tr>' +
+        '<td align="' + o.align + '"><table role="presentation" cellspacing="0" cellpadding="0" border="0"><tbody><tr>' +
+        '<td class="es-btn-cell" align="center" bgcolor="' + o.bg + '" style="background:' + o.bg + ';border-radius:6px;mso-padding-alt:14px 28px;">' +
+        '<a class="es-btn-link ' + (light ? 'es-btn-light' : 'es-btn-dark') + '" href="' + esc(o.href) + '" target="_blank" ' +
+        'style="display:inline-block;padding:14px 28px;font-family:\'Open Sans\',Helvetica,Arial,sans-serif;font-size:17px;line-height:20px;font-weight:700;color:' +
+        (light ? '#ffffff' : '#111111') + ';text-decoration:none;border-radius:6px;">' + esc(o.text) + '</a>' +
+        '</td></tr></tbody></table></td></tr></tbody></table>';
+    }
+    // Make sure the email carries the small rule that keeps button words readable in dark mode.
+    function ensureButtonStyle() {
+      for (const s of doc.querySelectorAll('style')) if (s.textContent.includes('/* es-button */')) return;
+      const st = doc.createElement('style');
+      st.textContent = BTN_CSS;
+      doc.head.appendChild(st);
+    }
+    const btnOf = (node) => (node ? closestEl(node, 'table.es-button') : null);
+    function btnValues(tbl) {
+      const a = tbl.querySelector('a.es-btn-link') || tbl.querySelector('a');
+      const cell = tbl.querySelector('td.es-btn-cell') || (a && a.parentElement);
+      const bg = ((cell && (cell.getAttribute('bgcolor') || '')) || '').toLowerCase();
+      const outer = tbl.querySelector('td');
+      return {
+        text: a ? a.textContent.trim() : '',
+        href: a ? (a.getAttribute('href') || '') : '',
+        bg: /^#[0-9a-f]{6}$/.test(bg) ? bg : '#d9480f',
+        align: (outer && outer.getAttribute('align')) || 'center',
+      };
+    }
+    function showButton(tbl) {
+      curBtn = tbl && tbl.isConnected ? tbl : null;
+      btnRow.hidden = !curBtn && !undoBtn;
+      btnName.textContent = curBtn ? '“' + (btnValues(curBtn).text || 'Button').slice(0, 24) + '”' : '';
+      dock.querySelectorAll('[data-act=btnEdit],[data-act=btnUp],[data-act=btnDown],[data-act=btnDup],[data-act=btnDel]').forEach((b) => { b.hidden = !curBtn; });
+      if (curBtn) {
+        dock.querySelector('[data-act=btnUp]').disabled = !curBtn.previousElementSibling;
+        dock.querySelector('[data-act=btnDown]').disabled = !curBtn.nextElementSibling;
+      }
+      btnUndoEl.hidden = !undoBtn;
+    }
+    function trackButton(node) {
+      if (!doc) return;
+      const t = btnOf(node);
+      if (t !== curBtn) showButton(t);
+    }
+    function moveButton(dir) {
+      const el = curBtn;
+      const other = el && (dir < 0 ? el.previousElementSibling : el.nextElementSibling);
+      if (!other) return;
+      const ref = dir < 0 ? unitOf(other)[0] : other.nextSibling;
+      unitOf(el).forEach((n) => other.parentNode.insertBefore(n, ref));
+      undoBtn = null;
+      showButton(el);
+      el.scrollIntoView({ block: 'nearest' });
+      scheduleChange();
+    }
+    function duplicateButton() {
+      const el = curBtn;
+      if (!el) return;
+      const nodes = unitOf(el).map((n) => n.cloneNode(true));
+      const copy = nodes[nodes.length - 1];
+      const ref = el.nextSibling;
+      nodes.forEach((n) => el.parentNode.insertBefore(n, ref));
+      undoBtn = null;
+      showButton(copy);
+      copy.scrollIntoView({ block: 'nearest' });
+      scheduleChange();
+    }
+    function deleteButton() {
+      const el = curBtn;
+      if (!el) return;
+      const nodes = unitOf(el);
+      undoBtn = { nodes, parent: el.parentNode, next: el.nextSibling };
+      nodes.forEach((n) => n.remove());
+      curBtn = null;
+      lastRange = null;
+      showButton(null);
+      btnName.textContent = 'Deleted';
+      btnRow.hidden = false;
+      scheduleChange();
+    }
+    function undoDeleteButton() {
+      const op = undoBtn;
+      if (!op) return;
+      const ref = op.next && op.next.parentNode === op.parent ? op.next : null;
+      op.nodes.forEach((n) => op.parent.insertBefore(n, ref));
+      undoBtn = null;
+      showButton(op.nodes[op.nodes.length - 1]);
+      scheduleChange();
+    }
+
+    // One dialog for both adding a new button and editing one that is already there.
+    function openButtonDialog(existing) {
+      const v = existing ? btnValues(existing) : { text: '', href: '', bg: BTN_COLORS[0][1].toLowerCase(), align: 'center' };
+      const dlg = document.createElement('div');
+      dlg.className = 've-dlg';
+      const box = document.createElement('div');
+      box.className = 've-dlg-box';
+      box.style.gridTemplateColumns = 'minmax(0,1fr)';
+      const mk = (tag, props, text) => { const n = document.createElement(tag); Object.assign(n, props || {}); if (text) n.textContent = text; return n; };
+      const title = mk('label', {}, existing ? 'Edit button' : 'Add a button');
+      const tLbl = mk('label', {}, 'Words on the button');
+      const tIn = mk('input', { type: 'text', maxLength: 60, placeholder: 'Sign up here' });
+      tIn.value = v.text;
+      const uLbl = mk('label', {}, 'Where it goes (web address, email or phone)');
+      const uIn = mk('input', { type: 'text', placeholder: 'https://…' });
+      uIn.value = v.href;
+      const cLbl = mk('label', {}, 'Color');
+      const colors = mk('div'); colors.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;align-items:center';
+      let bg = v.bg;
+      const swatches = [];
+      const paint = () => { swatches.forEach((s) => { s.style.outline = s.dataset.v.toLowerCase() === bg.toLowerCase() ? '3px solid var(--accent)' : 'none'; }); renderPreview(); };
+      for (const [name, hex] of BTN_COLORS) {
+        const b = mk('button', { type: 'button', title: name });
+        b.dataset.v = hex; b.style.cssText = 'width:30px;height:30px;padding:0;border-radius:6px;border:1px solid rgba(0,0,0,.25);background:' + hex;
+        b.addEventListener('click', () => { bg = hex; paint(); });
+        swatches.push(b); colors.appendChild(b);
+      }
+      const other = mk('input', { type: 'color' }); other.value = bg; other.title = 'Other color';
+      other.style.cssText = 'width:34px;height:30px;padding:0';
+      other.addEventListener('input', () => { bg = other.value; paint(); });
+      colors.appendChild(other);
+      const aLbl = mk('label', {}, 'Position');
+      const aRow = mk('div'); aRow.style.cssText = 'display:flex;gap:6px';
+      let align = v.align;
+      const aBtns = ['left', 'center', 'right'].map((p) => {
+        const b = mk('button', { type: 'button' }, p[0].toUpperCase() + p.slice(1));
+        b.addEventListener('click', () => { align = p; renderPreview(); });
+        aRow.appendChild(b); return b;
+      });
+      const pvLbl = mk('label', {}, 'Preview');
+      const pv = mk('div'); pv.style.cssText = 'background:#fff;border:1px solid var(--line);border-radius:8px;padding:0 12px';
+      function renderPreview() {
+        aBtns.forEach((b, i) => b.classList.toggle('on', ['left', 'center', 'right'][i] === align));
+        pv.innerHTML = buttonHtml({ text: tIn.value.trim() || 'Your button', href: '#', bg, align });
+      }
+      tIn.addEventListener('input', renderPreview);
+      const actions = mk('div'); actions.className = 've-dlg-actions';
+      const ok = mk('button', { type: 'button', className: 'primary' }, existing ? 'Apply' : 'Add button');
+      const cancel = mk('button', { type: 'button' }, 'Cancel');
+      actions.append(ok, cancel);
+      box.append(title, tLbl, tIn, uLbl, uIn, cLbl, colors, aLbl, aRow, pvLbl, pv, actions);
+      dlg.appendChild(box);
+      document.body.appendChild(dlg);
+      paint();
+      tIn.focus();
+      const done = () => dlg.remove();
+      cancel.addEventListener('click', done);
+      dlg.addEventListener('mousedown', (ev) => { if (ev.target === dlg) done(); });
+      const submit = () => {
+        const text = tIn.value.trim();
+        const href = normalizeUrl(uIn.value);
+        if (!text) { opts.toast('Type the words for the button first.', true); tIn.focus(); return; }
+        if (!href) { opts.toast(href === null ? "That doesn't look like a web address, email address or phone number." : 'Add where the button should go.', true); uIn.focus(); return; }
+        done();
+        if (existing) applyButton(existing, { text, href, bg, align });
+        else insertButton({ text, href, bg, align });
+      };
+      ok.addEventListener('click', submit);
+      dlg.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' && ev.target.tagName === 'INPUT' && ev.target.type === 'text') { ev.preventDefault(); submit(); }
+        else if (ev.key === 'Escape') done();
+      });
+    }
+    function insertButton(o) {
+      const after = curText || curBlock;
+      if (!after || !after.isConnected) { opts.toast('Click in the text above where you want the button first.', true); return; }
+      ensureButtonStyle();
+      const t = doc.createElement('template');
+      t.innerHTML = buttonHtml(o);
+      const node = t.content.firstElementChild;
+      after.parentNode.insertBefore(node, after.nextSibling);
+      markEditable(node);
+      undoBtn = null;
+      showButton(node);
+      node.scrollIntoView({ block: 'nearest' });
+      scheduleChange();
+      opts.toast('Button added. Click its words to edit them, or Edit… to change the link or color.');
+    }
+    function applyButton(tbl, o) {
+      ensureButtonStyle();
+      const t = doc.createElement('template');
+      t.innerHTML = buttonHtml(o);
+      const fresh = t.content.firstElementChild;
+      // keep any outer spacing the person set; swap in the rebuilt button
+      tbl.replaceWith(fresh);
+      markEditable(fresh);
+      showButton(fresh);
       scheduleChange();
     }
 
@@ -1108,11 +1445,13 @@
 
     /* ---------- toolbar actions ---------- */
     // Keep the email's text selection when a toolbar button is pressed.
-    bar.addEventListener('mousedown', (e) => {
+    const keepSelection = (e) => {
       if (e.target.closest('button')) e.preventDefault();
-    });
+    };
+    bar.addEventListener('mousedown', keepSelection);
+    dock.addEventListener('mousedown', keepSelection);
 
-    bar.addEventListener('click', (e) => {
+    const onBarClick = (e) => {
       const b = e.target.closest('button');
       if (!b || !doc) return;
 
@@ -1163,6 +1502,21 @@
         case 'blkDown': moveBlock(1); break;
         case 'blkDup': duplicateBlock(); break;
         case 'blkDel': deleteBlock(); break;
+        case 'btnEdit': if (curBtn) openButtonDialog(curBtn); break;
+        case 'btnUp': moveButton(-1); break;
+        case 'btnDown': moveButton(1); break;
+        case 'btnDup': duplicateButton(); break;
+        case 'btnDel': deleteButton(); break;
+        case 'btnUndo': undoDeleteButton(); break;
+        case 'addButton':
+          if (!curText && !curBlock) { opts.toast('Click in the text above where you want the button first.', true); break; }
+          openButtonDialog(null);
+          break;
+        case 'txtUp': moveText(-1); break;
+        case 'txtDown': moveText(1); break;
+        case 'txtDup': duplicateText(); break;
+        case 'txtDel': deleteText(); break;
+        case 'txtUndo': undoDeleteText(); break;
         case 'blkSave': saveCurrentBlock(); break;
         case 'blocks': openBlocks(); break;
         case 'blkUndo': undoDelete(); break;
@@ -1207,7 +1561,9 @@
         }
         default:
       }
-    });
+    };
+    bar.addEventListener('click', onBarClick);
+    dock.addEventListener('click', onBarClick);
 
     bar.addEventListener('change', (e) => {
       const t = e.target;
@@ -1250,13 +1606,21 @@
         e.preventDefault();
         selectImage(img);
         undoOp = null;
+        undoTxt = null;
+        undoBtn = null;
         trackBlock(img);
+        trackText(img);
+        trackButton(img);
         return;
       }
       if (closestEl(e.target, 'a')) e.preventDefault(); // never navigate the preview
       selectImage(null);
       undoOp = null;
+      undoTxt = null;
+      undoBtn = null;
       trackBlock(e.target);
+      trackText(e.target);
+      trackButton(e.target);
       // Clicking somewhere that can't hold text: forget the old cursor spot, so a picture
       // is never dropped somewhere the person didn't pick.
       if (!closestEl(e.target, '[data-es-edit]')) lastRange = null;
@@ -1425,7 +1789,11 @@
       d.addEventListener('dragover', onDragOver);
       d.addEventListener('dragleave', (e) => { if (!e.relatedTarget) clearDropMark(); });
       d.addEventListener('drop', onDrop);
-      d.addEventListener('selectionchange', () => { rememberRange(); dropStalePicture(); updateState(); });
+      d.addEventListener('selectionchange', () => {
+        rememberRange(); dropStalePicture(); updateState();
+        const s = d.getSelection();
+        if (s && s.rangeCount && s.anchorNode) { const t = textOf(s.anchorNode); if (t && t !== curText) showText(t); const bt = btnOf(s.anchorNode); if (bt !== curBtn) showButton(bt); }
+      });
       d.addEventListener('mousedown', () => { if (opts.onFocus) opts.onFocus(); });
       d.addEventListener('focusin', () => { if (opts.onFocus) opts.onFocus(); });
     }
@@ -1439,6 +1807,12 @@
       lastRange = null;
       curBlock = null;
       undoOp = null;
+      curText = null;
+      undoTxt = null;
+      curBtn = null;
+      undoBtn = null;
+      showButton(null);
+      showText(null);
       showBlock(null);
       darkRules = null;
       applyScheme();
