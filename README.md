@@ -59,11 +59,37 @@ different. The email itself looks and behaves the same.
 
 ---
 
+## Light / Dark preview
+
+Above the preview there is a **Light | Dark** switch. Dark shows the email the way an app in dark mode would, using the email's own dark-mode styles. It only changes the preview, never the email itself, and it works no matter what mode your computer is in. If the email has no dark-mode styles, a note says so. Gmail and Outlook apps do their own recoloring, so this is a close guide, not an exact match. The switch is hidden on a phone.
+
+## Block library
+
+The block library holds sections you want to reuse, like the Elder Spotlight. It is separate from saving your email.
+
+- **Add to Library:** click a section, then choose **Add to Library** in the blue bar and give it a name. This only copies that section into the library. It does not save your email, so press Save for that as usual.
+- **+ Block:** in any email, click the section you want it under, choose **+ Block** in the toolbar (next to + Picture), and press **Insert**. The block goes right below that section.
+- Remove a block from the library with **Delete** in the same list. Emails that already use it are not changed.
+
+A library block keeps its own colors and classes, so it works best in emails built from the same template (the dark-mode styles live in the email, not the block).
+
+## Moving, copying and deleting sections
+
+Click anywhere inside a section of the email (like the Elder Spotlight) and a blue bar appears above the preview with the section's name. The section is outlined in blue so you can see what you picked.
+
+- **Up / Down** moves the whole section past its neighbor.
+- **Duplicate** puts a copy right below it.
+- **Delete** removes the whole section. An **Undo** button appears right away and stays until you click somewhere else in the email.
+
+A section is a block that sits in a stack of blocks, which is how your newsletter is built. A comment right above it (like `<!-- Elder Spotlight -->`) moves with it and gives it its name. Deleted sections are also recoverable from History if you saved with them in place.
+
 ## Dark mode check
 
 The grey bar under the editor now also checks dark mode. It looks at how your email would appear with the dark-mode styles switched on. If a light block stays bright, or text becomes hard to read, you get "Not dark-mode friendly" and a **Fix for dark mode** button. The button adds dark colors for just those spots and the tags that tell email apps your email supports dark mode. It never changes your own dark-mode styling, and pressing it again changes nothing.
 
 Gmail and Outlook apps do their own color flipping and ignore these styles, so check important emails in a real dark-mode app.
+
+**Adding pictures:** in the visual editor, a picture goes where your cursor is, so click in the text first. If you have a picture selected, you get **Replace** and **Add new** instead. In the Code view, click in the code where you want the picture first. If you haven't, the studio asks you to rather than putting it at the bottom.
 
 ## If something goes wrong
 
@@ -142,11 +168,12 @@ entry, click the three dots, and choose **Rollback to this deployment**.
 ```
 public/index.html          the interface (no build step)
 public/editor.js           the click-to-edit visual editor
+public/darkmode.js         the dark-mode check and fix
 functions/_middleware.js   locks /api/* behind the login
 functions/_lib/auth.js     password check + signed session cookie
 functions/_lib/tags.js     rules for template tags
 functions/_lib/versions.js saved earlier versions (history)
-functions/api/*            login, templates (KV), images (R2)
+functions/api/*            login, templates (KV), block library (KV), images (R2)
 functions/img/[key].js     public image links used inside emails
 wrangler.toml              project settings and storage connections
 ```
