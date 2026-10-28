@@ -1,7 +1,7 @@
 /* Email Studio: visual (click-to-edit) layer for the preview pane.
  *
- * The preview iframe is sandboxed WITHOUT allow-scripts, so nothing inside an
- * email can run code. This file runs in the parent page, edits the iframe's
+ * Nothing inside an email can run code in the preview (a Content-Security-Policy rule
+ * blocks all scripts there; see guardHtml). This file runs in the parent page, edits the iframe's
  * document directly, then turns the result back into clean HTML.
  *
  * What people can do in the preview:
@@ -61,6 +61,25 @@
   function setEditable(el) {
     el.setAttribute('contenteditable', 'true');
     el.setAttribute('data-es-edit', '');
+  }
+
+  // Safari refuses to run the editor's own listeners on a frame that is sandboxed without
+  // 'allow-scripts' (a known, unfixed WebKit bug), which silently breaks clicks, keys, paste and
+  // drag-and-drop there. So the preview frame is given 'allow-scripts', and this rule, placed first
+  // in the page, stops EVERY script, inline handler and javascript: link inside the email from
+  // running. The editor itself runs in the parent page and is not affected.
+  const CSP_META = '<meta http-equiv="Content-Security-Policy" data-es-csp content="script-src \'none\'; object-src \'none\'; form-action \'none\'">';
+  function guardHtml(html) {
+    html = String(html);
+    let m = /<head(?=[\s>\/])[^>]*>/i.exec(html);
+    let at, ins;
+    if (m) { at = m.index + m[0].length; ins = CSP_META; }
+    else if ((m = /<html(?=[\s>\/])[^>]*>/i.exec(html))) { at = m.index + m[0].length; ins = '<head>' + CSP_META; }
+    else if ((m = /^\s*<!doctype[^>]*>/i.exec(html))) { at = m.index + m[0].length; ins = '<html><head>' + CSP_META; }
+    else { at = 0; ins = '<html><head>' + CSP_META; }
+    // scripts that sit before the rule would run first, so drop those (emails never need them there)
+    const before = html.slice(0, at).replace(/<script\b[\s\S]*?(<\/script\s*>|$)/gi, '');
+    return before + ins + html.slice(at);
   }
 
   function markEditable(el) {
@@ -736,7 +755,7 @@
       });
       ['data-es-edit', 'data-es-sel', 'data-es-drop', 'data-es-new', 'data-es-block'].forEach((a) =>
         clone.querySelectorAll('[' + a + ']').forEach((e) => e.removeAttribute(a)));
-      clone.querySelectorAll('style[data-es-style]').forEach((e) => e.remove());
+      clone.querySelectorAll('style[data-es-style], meta[data-es-csp]').forEach((e) => e.remove());
       clone.querySelectorAll('[style=""]').forEach((e) => e.removeAttribute('style'));
       return clone;
     }
@@ -2120,7 +2139,7 @@
         loaded = false;
         const m = String(html).match(/^\s*(<!doctype[^>]*>)/i);
         doctype = m ? m[1] : '<!doctype html>';
-        iframe.srcdoc = html;
+        iframe.srcdoc = guardHtml(html);
       },
       // Write any not-yet-saved visual edits back to the code now.
       flush,
