@@ -82,6 +82,8 @@
     return before + ins + html.slice(at);
   }
 
+  const IS_MAC = /Mac|iPhone|iPad|iPod/.test((navigator.platform || '') + ' ' + (navigator.userAgent || ''));
+
   function markEditable(el) {
     if (SKIP.has(el.tagName)) return;
     // A whole bullet list is one editing area so Enter makes a new bullet.
@@ -1798,6 +1800,21 @@
       if (e.key === 'Escape' && selectedImg) {
         selectImage(null);
         return;
+      }
+      // Formatting shortcuts. Safari keeps some of these for itself (Cmd+I is "Mail This Page"), so the
+      // editor claims them. On a Mac only the Cmd key counts, so Ctrl-based text-editing keys still work.
+      if (!e.isComposing && !e.altKey && (IS_MAC ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey)) {
+        const k = (e.key || '').toLowerCase();
+        const fmt = { b: 'bold', i: 'italic', u: 'underline' }[k];
+        const inText = !!closestEl(e.target, '[data-es-edit]');
+        if (inText && ((fmt && !e.shiftKey) || k === 'z' || (k === 'y' && !IS_MAC))) {
+          e.preventDefault();
+          if (fmt) doc.execCommand(fmt, false, null);
+          else doc.execCommand(k === 'y' || e.shiftKey ? 'redo' : 'undo', false, null);
+          scheduleChange();
+          updateState();
+          return;
+        }
       }
       if (tryJoin(e)) return;
       if (e.key === 'Enter' && !e.isComposing && !e.ctrlKey && !e.metaKey) {
